@@ -112,7 +112,6 @@ Read through `brews` and `casks` before you run `bootstrap.sh` or `rebuild.sh` f
 
 **About `herdr`:** it's in the `brews` list.
 It's a real public Homebrew formula (`brew info herdr` finds it in homebrew-core, no tap needed), so it will install fine.
-The tracked WezTerm config enables the kitty keyboard protocol so Escape is sent as an atomic key event instead of being swallowed by Herdr when a mouse event follows it closely.
 If you don't use it, just remove it from `brews` in your copy.
 
 **About the firstmate toolchain:** `treehouse` is a real Homebrew formula, so it's in the `brews` list like `herdr`.
