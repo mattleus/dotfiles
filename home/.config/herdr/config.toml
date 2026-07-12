@@ -16,10 +16,6 @@ copy_mode  = "prefix+y"  # herdr's copy-mode entry key; copy-mode's own internal
 [ui]
 # Agents panel order: explicit choice of "spaces" (grouped by space, the default) over "priority".
 agent_panel_sort = "spaces"
-# Disable Herdr's host mouse capture so a trackpad event can't tailgate a held
-# Escape and get it swallowed in the pane (e.g. Neovim stuck in insert mode).
-# Only effective together with the pane keeping mouse off (see nvim mouse below).
-mouse_capture = false
 
 show_agent_labels_on_pane_borders = true
 [ui.sound]
