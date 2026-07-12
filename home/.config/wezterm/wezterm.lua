@@ -46,4 +46,11 @@ wezterm.on("window-focus-changed", function(window)
 	window:set_config_overrides(overrides)
 end)
 
+-- With Herdr mouse_capture=false, the Herdr client is a full-screen alt-screen app
+-- enabling no mouse reporting, so WezTerm would otherwise synthesize Up/Down arrow
+-- keys for wheel scroll (default speed 3) and a pane REPL reads them as history
+-- navigation. Set to 0 so wheel input in alternate-screen apps is never turned into
+-- arrow keys. Scroll pane scrollback with PageUp/PageDown or copy-mode (prefix+y).
+config.alternate_buffer_wheel_scroll_speed = 0
+
 return config
