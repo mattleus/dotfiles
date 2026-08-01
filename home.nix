@@ -1,4 +1,4 @@
-{ config, pkgs, user, ... }:
+{ config, lib, pkgs, user, ... }:
 
 let
   dotfiles = "${config.home.homeDirectory}/.dotfiles";
@@ -63,15 +63,39 @@ in
   home.file.".claude/settings.json".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.claude/settings.json";
 
-  # Keep Pi's credential and runtime state local by linking only authored files.
-  home.file.".pi/agent/themes/rose-pine-moon.json".source =
-    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.pi/agent/themes/rose-pine-moon.json";
+  # Keep Pi's credential and runtime state local by linking only authored files and directories.
+  home.file.".pi/agent/themes".source =
+    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.pi/agent/themes";
+  home.file.".pi/agent/extensions".source =
+    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.pi/agent/extensions";
   home.file.".pi/agent/models.json".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.pi/agent/models.json";
   home.file.".pi/agent/settings.json".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.pi/agent/settings.json";
-  home.file.".pi/agent/extensions/terminal-status-title.js".source =
-    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.pi/agent/extensions/terminal-status-title.js";
+
+  # Remove only the two legacy managed child links before Home Manager adopts their directories.
+  home.activation.migratePiAuthoredDirectories = lib.hm.dag.entryBefore [ "checkLinkTargets" ] ''
+    removeLegacyPiLink() {
+      local target="$1"
+      local source="$2"
+      local relativeTarget="''${target#"$HOME/"}"
+      local linkTarget
+
+      [ -L "$target" ] || return 0
+      linkTarget="$(readlink "$target")"
+      case "$linkTarget" in
+        /nix/store/*-home-manager-files/"$relativeTarget") ;;
+        *) return 0 ;;
+      esac
+      [ "$(readlink -f "$target")" = "$(readlink -f "$source")" ] || return 0
+      $DRY_RUN_CMD rm "$target"
+    }
+
+    removeLegacyPiLink "$HOME/.pi/agent/themes/rose-pine-moon.json" "${dotfiles}/home/.pi/agent/themes/rose-pine-moon.json"
+    removeLegacyPiLink "$HOME/.pi/agent/extensions/terminal-status-title.js" "${dotfiles}/home/.pi/agent/extensions/terminal-status-title.js"
+    $DRY_RUN_CMD rmdir "$HOME/.pi/agent/themes" 2>/dev/null || true
+    $DRY_RUN_CMD rmdir "$HOME/.pi/agent/extensions" 2>/dev/null || true
+  '';
 
   home.file.".claude/CLAUDE.md".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/AGENTS.md";
