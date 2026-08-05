@@ -18,6 +18,7 @@ in
     neovim
     # the font everything renders in
     nerd-fonts.hack
+    pkgs.rectangle
   ];
   fonts.fontconfig.enable = true;
   home.sessionVariables.EDITOR = "nvim";

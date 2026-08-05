@@ -11,10 +11,10 @@
   users.users.${user} = {
     home = "/Users/${user}";
   };
+  programs.zsh.enable = true;
   system.stateVersion = 6;
   system.defaults = {
     NSGlobalDomain = {
-      AppleInterfaceStyle = "Dark";
       KeyRepeat = 2;          # fast key repeat
       InitialKeyRepeat = 15;  # short delay before repeat
       _HIHideMenuBar = true;  # auto-hide the menu bar
@@ -36,10 +36,18 @@
     onActivation.extraFlags = [ "--force" ];
     brews = [
       "herdr"
+      "pyenv"
+      "python@3.13"
+      "poetry"
+      "gemini-cli"
+      "terraform"
+      "sqlite"
+      "clipy"		
     ];
     casks = [
       "wezterm"
       "claude-code"
+      "copilot-cli"
     ];
   };
 }
