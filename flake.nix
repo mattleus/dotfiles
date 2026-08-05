@@ -1,6 +1,5 @@
 {
   description = "dotfiles";
-  nix-homebrew.autoMigrate = true;
   inputs = {
     # Use `github:NixOS/nixpkgs/nixpkgs-26.05-darwin` to use Nixpkgs 26.05.
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-26.05-darwin";
@@ -10,7 +9,7 @@
 
     home-manager.url = "github:nix-community/home-manager/release-26.05";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
-
+    home-manager.backupFileExtension = "backup";
     nix-homebrew.url = "github:zhaofengli/nix-homebrew";
   };
 

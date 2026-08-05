@@ -28,6 +28,7 @@
   nix-homebrew = {
     enable = true;
     inherit user;
+    autoMigrate = true;
   };
   homebrew = {
     enable = true;
@@ -42,7 +43,7 @@
       "gemini-cli"
       "terraform"
       "sqlite"
-      "clipy"		
+      "clippy"		
     ];
     casks = [
       "wezterm"
