@@ -1,6 +1,6 @@
 {
   description = "dotfiles";
-
+  nix-homebrew.autoMigrate = true;
   inputs = {
     # Use `github:NixOS/nixpkgs/nixpkgs-26.05-darwin` to use Nixpkgs 26.05.
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-26.05-darwin";
@@ -18,7 +18,7 @@
     let
       # The one username line to change if this isn't your machine.
       # bootstrap.sh offers to rewrite this for you if your macOS username differs.
-      user = "kunchen";
+      user = "matt";
     in
     {
       darwinConfigurations."mac" = nix-darwin.lib.darwinSystem {
