@@ -28,6 +28,9 @@
   system.defaults.CustomUserPreferences = {
     NSGlobalDomain = {
       AppleMenuBarVisibleInFullscreen = true; # true keeps the menu bar visible, false auto-hides it
+      "com.apple.sound.beep.volume" = 0.0;    # silence the system alert sound
+      "com.apple.sound.beep.feedback" = false; # no beep when pressing volume keys
+      "com.apple.sound.uiaudio.enabled" = 0;  # silence other UI sounds (empty trash, lock, etc.)
     };
   };
   nix-homebrew = {
@@ -48,8 +51,7 @@
       "gemini-cli"
       "terraform"
       "sqlite"
-      "clippy"		
-      "gcloud"
+      "clippy"
     ];
     casks = [
       "wezterm"
