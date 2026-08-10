@@ -17,13 +17,18 @@
     NSGlobalDomain = {
       KeyRepeat = 2;          # fast key repeat
       InitialKeyRepeat = 15;  # short delay before repeat
-      _HIHideMenuBar = true;  # auto-hide the menu bar
+      _HIHideMenuBar = false; # keep the menu bar visible
       AppleShowAllExtensions = true;
     };
     dock.autohide = true;
     finder.FXPreferredViewStyle = "Nlsv";  # list view by default
     finder.CreateDesktop = false;          # clean desktop
     trackpad.Clicking = true;              # tap to click
+  };
+  system.defaults.CustomUserPreferences = {
+    NSGlobalDomain = {
+      AppleMenuBarVisibleInFullscreen = true; # true keeps the menu bar visible, false auto-hides it
+    };
   };
   nix-homebrew = {
     enable = true;
@@ -44,6 +49,7 @@
       "terraform"
       "sqlite"
       "clippy"		
+      "gcloud"
     ];
     casks = [
       "wezterm"
