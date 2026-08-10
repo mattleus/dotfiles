@@ -16,6 +16,7 @@ in
     jq        # json on the command line
     lazygit
     neovim
+    google-cloud-sdk  # gcloud CLI
     # the font everything renders in
     nerd-fonts.hack
     pkgs.rectangle
@@ -29,6 +30,8 @@ in
     syntaxHighlighting.enable = true;  # commands turn green when valid
     initContent = ''
       bindkey '^f' autosuggest-accept
+      # Automatically include hidden files in tab completion and wildcards (*)
+      setopt globdots
     '';
     shellAliases = {
       ".." = "cd ..";
@@ -38,6 +41,7 @@ in
       m = "git switch main";
       cc = "claude --dangerously-skip-permissions";
       co = "codex --full-auto";
+      ls = "ls -A";
     };
   };
 
