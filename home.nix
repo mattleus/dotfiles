@@ -46,6 +46,76 @@ in
     };
   };
 
+  # Multiple GitHub accounts, routed by which folder a repo lives in.
+  # Each account gets its own SSH key + host alias (programs.ssh below);
+  # these includes rewrite the plain git@github.com: remote to the right
+  # alias and set the matching commit identity, so remotes never need editing.
+  programs.git = {
+    enable = true;
+    userName = "Matt Leus";
+    userEmail = "matt@reliant.ai";
+    lfs.enable = true;
+    extraConfig = {
+      pull.rebase = false;
+    };
+    aliases = {
+      pushup = "!f() { git checkout -b \"$1\" && git push -u origin HEAD; }; f";
+    };
+    includes = [
+      {
+        condition = "gitdir:~/repos/github/reliant-ai/";
+        contents = {
+          user.email = "matt@reliant.ai";
+          url."git@github-reliant:".insteadOf = "git@github.com:";
+        };
+      }
+      {
+        condition = "gitdir:~/repos/github/cohere-ai/";
+        contents = {
+          user.email = "matthew.leus@cohere.com";
+          url."git@github-cohere:".insteadOf = "git@github.com:";
+        };
+      }
+      {
+        condition = "gitdir:~/repos/github/mattleus/";
+        contents = {
+          user.email = "matthew.leus@gmail.com";
+          url."git@github-personal:".insteadOf = "git@github.com:";
+        };
+      }
+    ];
+  };
+
+  programs.ssh = {
+    enable = true;
+    matchBlocks = {
+      "github-reliant" = {
+        hostname = "github.com";
+        user = "git";
+        identityFile = "~/.ssh/reliant-github";
+        identitiesOnly = true;
+      };
+      "github-cohere" = {
+        hostname = "github.com";
+        user = "git";
+        identityFile = "~/.ssh/cohere-github";
+        identitiesOnly = true;
+      };
+      "github-personal" = {
+        hostname = "github.com";
+        user = "git";
+        identityFile = "~/.ssh/personal-github";
+        identitiesOnly = true;
+      };
+      "oracle2" = {
+        hostname = "64.181.219.59";
+        port = 22;
+        user = "matt";
+        identityFile = "~/.ssh/matt-reliant-oracle";
+      };
+    };
+  };
+
   programs.starship = {
     enable = true;
     settings = {
