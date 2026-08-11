@@ -16,6 +16,7 @@ in
     jq        # json on the command line
     gh        # github cli
     lazygit
+    mc        # midnight commander
     neovim
     google-cloud-sdk  # gcloud CLI
     # the font everything renders in
@@ -53,7 +54,7 @@ in
   programs.git = {
     enable = true;
     userName = "Matt Leus";
-    userEmail = "matt@reliant.ai";
+    userEmail = "matthew.leus@cohere.com";
     lfs.enable = true;
     extraConfig = {
       pull.rebase = false;
