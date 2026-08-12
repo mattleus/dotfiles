@@ -57,6 +57,7 @@ in
       add = "git add .";
       push = "git push";
       pull = "git pull";
+      status = "git status";
       m = "git switch main";
       cc = "claude --dangerously-skip-permissions";
       co = "codex --full-auto";
@@ -201,10 +202,13 @@ in
   home.activation.installNoMistakes = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     if [ ! -x "$HOME/.local/bin/no-mistakes" ]; then
       run mkdir -p "$HOME/.local/bin"
-      # exporting PATH here (not relying on the ambient one) makes the installer's own
-      # "am I on PATH" check pick $HOME/.local/bin, so it symlinks there instead of the
-      # sudo-only /usr/local/bin fallback, which would hang this non-interactive activation.
-      run bash -c "PATH=\"\$HOME/.local/bin:\$PATH\" curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh | sh"
+      # Prefixing PATH= onto just the pipeline's first stage only sets it for that command;
+      # `sh` on the far side of the pipe would still see the unmodified ambient PATH and pick
+      # the sudo-only /usr/local/bin fallback (which would hang this non-interactive
+      # activation). Exporting on the wrapping bash -c instead makes both curl and sh inherit
+      # the same modified PATH, so the installer's own "am I on PATH" check sees
+      # $HOME/.local/bin and symlinks there.
+      run env PATH="$HOME/.local/bin:$PATH" bash -c "curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh | sh"
     fi
   '';
 
