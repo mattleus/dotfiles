@@ -1,4 +1,4 @@
-{ config, pkgs, user, ... }:
+{ config, pkgs, lib, user, ... }:
 
 let
   dotfiles = "${config.home.homeDirectory}/.dotfiles";
@@ -19,6 +19,7 @@ in
     mc        # midnight commander
     neovim
     google-cloud-sdk  # gcloud CLI
+    nodejs    # npm, for the firstmate toolchain below
     # the font everything renders in
     nerd-fonts.hack
     pkgs.rectangle
@@ -34,6 +35,19 @@ in
       bindkey '^f' autosuggest-accept
       # Automatically include hidden files in tab completion and wildcards (*)
       setopt globdots
+
+      # Mirrors the directory-to-identity mapping in programs.git.includes below:
+      # switch the active `gh` account to match whichever account's directory tree we're in.
+      _gh_auth_autoswitch() {
+        local user=""
+        case "$PWD" in
+          "$HOME"/repos/github/mattleus(|/*))    user="mattleus" ;;
+          "$HOME"/repos/github/reliant-ai(|/*))  user="matt-reliant" ;;
+          "$HOME"/repos/github/cohere-ai(|/*))   user="mattleus-cohere" ;;
+        esac
+        [[ -n "$user" ]] && gh auth switch -u "$user" -h github.com &>/dev/null
+      }
+      chpwd_functions+=(_gh_auth_autoswitch)
     '';
     shellAliases = {
       ".." = "cd ..";
@@ -159,4 +173,43 @@ in
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/AGENTS.md";
   home.file.".config/opencode/AGENTS.md".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/AGENTS.md";
+
+  # firstmate toolchain: none of these have a Homebrew formula or nixpkgs package, so they're
+  # installed declaratively via home.activation instead of by hand. Each block guards on the
+  # tool already being present, so re-running `darwin-rebuild switch` is a no-op once installed.
+  home.activation.installNoMistakes = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    if ! command -v no-mistakes >/dev/null 2>&1; then
+      run bash -c "curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh | sh"
+    fi
+  '';
+
+  home.activation.cloneFirstmate = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    firstmateDir="${config.home.homeDirectory}/repos/public/firstmate"
+    if [ ! -d "$firstmateDir" ]; then
+      run git clone https://github.com/kunchenguid/firstmate "$firstmateDir"
+    fi
+  '';
+
+  # gh-axi, chrome-devtools-axi, and lavish-axi each need one-time hook setup after their
+  # first install; the command -v guard keeps that from re-running on later switches.
+  home.activation.installAxiTools = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    if ! command -v gh-axi >/dev/null 2>&1; then
+      run npm install -g gh-axi
+      run gh-axi setup hooks
+    fi
+    if ! command -v chrome-devtools-axi >/dev/null 2>&1; then
+      run npm install -g chrome-devtools-axi
+      run chrome-devtools-axi setup hooks
+    fi
+    if ! command -v lavish-axi >/dev/null 2>&1; then
+      run npm install -g lavish-axi
+      run lavish-axi setup hooks
+    fi
+    if ! command -v tasks-axi >/dev/null 2>&1; then
+      run npm install -g tasks-axi
+    fi
+    if ! command -v quota-axi >/dev/null 2>&1; then
+      run npm install -g quota-axi
+    fi
+  '';
 }

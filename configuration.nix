@@ -52,6 +52,7 @@
       "terraform"
       "sqlite"
       "clippy"
+      "treehouse"
     ];
     casks = [
       "wezterm"
