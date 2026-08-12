@@ -4,6 +4,7 @@ Deliberate decisions in this repo - do NOT silently revert them:
 
 - `homebrew.onActivation.cleanup = "zap"` in `configuration.nix` is intentional. It forces the good habit of declaring every Homebrew package in the Nix config instead of installing things ad-hoc, which keeps the machine reproducible. Do not soften it to `uninstall` or `none`. Users are warned about its effect in README.md; this note is for anyone tempted to change the setting itself.
 - Never commit `.no-mistakes/` validation evidence to this public repo. `.no-mistakes/` is gitignored; if a validation pipeline stages evidence into a branch, drop it before merging.
+- Tools with no Homebrew formula and no nixpkgs package are declared via `home.activation` blocks at the end of `home.nix` (see `installNoMistakes`, `cloneFirstmate`, `installAxiTools`), each guarded by a `command -v`/path check so re-running `darwin-rebuild switch` is a no-op. Follow this pattern for future tools in the same situation rather than installing them by hand.
 
 ## Maintaining this file
 
