@@ -57,7 +57,7 @@ in
       add = "git add .";
       push = "git push";
       pull = "git pull";
-      status = "git status";
+      gs = "git status";
       m = "git switch main";
       cc = "claude --dangerously-skip-permissions";
       co = "codex --full-auto";

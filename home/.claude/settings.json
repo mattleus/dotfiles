@@ -41,4 +41,5 @@
     "mattpocock-skills@claude-plugins-official": true
   },
   "theme": "dark-ansi",
+  "skipDangerousModePermissionPrompt": true
 }
