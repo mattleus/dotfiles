@@ -19,13 +19,16 @@ in
     mc        # midnight commander
     neovim
     google-cloud-sdk  # gcloud CLI
-    nodejs    # npm, for the firstmate toolchain below
+    nodejs    # general JS/TS dev use
+    opencode  # AI coding agent for the terminal
     # the font everything renders in
     nerd-fonts.hack
     pkgs.rectangle
   ];
   fonts.fontconfig.enable = true;
   home.sessionVariables.EDITOR = "nvim";
+  # so tools installed by the activation scripts below (no-mistakes) resolve on PATH
+  home.sessionPath = [ "${config.home.homeDirectory}/.local/bin" ];
 
   programs.zsh = {
     enable = true;
@@ -67,14 +70,12 @@ in
   # alias and set the matching commit identity, so remotes never need editing.
   programs.git = {
     enable = true;
-    userName = "Matt Leus";
-    userEmail = "matthew.leus@cohere.com";
     lfs.enable = true;
-    extraConfig = {
+    settings = {
+      user.name = "Matt Leus";
+      user.email = "matthew.leus@cohere.com";
       pull.rebase = false;
-    };
-    aliases = {
-      pushup = "!f() { git checkout -b \"$1\" && git push -u origin HEAD; }; f";
+      alias.pushup = "!f() { git checkout -b \"$1\" && git push -u origin HEAD; }; f";
     };
     includes = [
       {
@@ -103,30 +104,45 @@ in
 
   programs.ssh = {
     enable = true;
-    matchBlocks = {
+    # home-manager's old default ssh_config values, restated explicitly so
+    # disabling enableDefaultConfig (below) changes nothing about behavior.
+    enableDefaultConfig = false;
+    settings = {
+      "*" = {
+        ForwardAgent = false;
+        AddKeysToAgent = "no";
+        Compression = false;
+        ServerAliveInterval = 0;
+        ServerAliveCountMax = 3;
+        HashKnownHosts = false;
+        UserKnownHostsFile = "~/.ssh/known_hosts";
+        ControlMaster = "no";
+        ControlPath = "~/.ssh/master-%r@%n:%p";
+        ControlPersist = "no";
+      };
       "github-reliant" = {
-        hostname = "github.com";
-        user = "git";
-        identityFile = "~/.ssh/reliant-github";
-        identitiesOnly = true;
+        HostName = "github.com";
+        User = "git";
+        IdentityFile = "~/.ssh/reliant-github";
+        IdentitiesOnly = true;
       };
       "github-cohere" = {
-        hostname = "github.com";
-        user = "git";
-        identityFile = "~/.ssh/cohere-github";
-        identitiesOnly = true;
+        HostName = "github.com";
+        User = "git";
+        IdentityFile = "~/.ssh/cohere-github";
+        IdentitiesOnly = true;
       };
       "github-personal" = {
-        hostname = "github.com";
-        user = "git";
-        identityFile = "~/.ssh/personal-github";
-        identitiesOnly = true;
+        HostName = "github.com";
+        User = "git";
+        IdentityFile = "~/.ssh/personal-github";
+        IdentitiesOnly = true;
       };
       "oracle2" = {
-        hostname = "64.181.219.59";
-        port = 22;
-        user = "matt";
-        identityFile = "~/.ssh/matt-reliant-oracle";
+        HostName = "64.181.219.59";
+        Port = 22;
+        User = "matt";
+        IdentityFile = "~/.ssh/matt-reliant-oracle";
       };
     };
   };
@@ -177,39 +193,57 @@ in
   # firstmate toolchain: none of these have a Homebrew formula or nixpkgs package, so they're
   # installed declaratively via home.activation instead of by hand. Each block guards on the
   # tool already being present, so re-running `darwin-rebuild switch` is a no-op once installed.
+  #
+  # `darwin-rebuild switch` runs these under sudo's locked-down PATH (macOS secure_path), which
+  # has neither Homebrew's nor Nix's bin dirs on it. Every guard and command below therefore
+  # uses an absolute path instead of relying on PATH lookup - a bare `npm` or `command -v gh-axi`
+  # here silently can't find anything and either no-ops or errors out with "command not found".
   home.activation.installNoMistakes = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    if ! command -v no-mistakes >/dev/null 2>&1; then
-      run bash -c "curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh | sh"
+    if [ ! -x "$HOME/.local/bin/no-mistakes" ]; then
+      run mkdir -p "$HOME/.local/bin"
+      # exporting PATH here (not relying on the ambient one) makes the installer's own
+      # "am I on PATH" check pick $HOME/.local/bin, so it symlinks there instead of the
+      # sudo-only /usr/local/bin fallback, which would hang this non-interactive activation.
+      run bash -c "PATH=\"\$HOME/.local/bin:\$PATH\" curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh | sh"
     fi
   '';
 
   home.activation.cloneFirstmate = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     firstmateDir="${config.home.homeDirectory}/repos/public/firstmate"
     if [ ! -d "$firstmateDir" ]; then
-      run git clone https://github.com/kunchenguid/firstmate "$firstmateDir"
+      run /usr/bin/git clone https://github.com/kunchenguid/firstmate "$firstmateDir"
     fi
   '';
 
   # gh-axi, chrome-devtools-axi, and lavish-axi each need one-time hook setup after their
-  # first install; the command -v guard keeps that from re-running on later switches.
+  # first install. Installed via Homebrew's npm (its bundled npmrc points `prefix` at
+  # /opt/homebrew, which is user-writable; Nix's own npm defaults `prefix` into the read-only
+  # Nix store and can't do global installs at all).
+  #
+  # npm itself, and every CLI it installs here, keeps a generic `#!/usr/bin/env node` shebang
+  # (Homebrew only rewrites shebangs for its own formulae, not for `npm install -g` output).
+  # `env` resolves `node` via PATH, and sudo's secure_path has no /opt/homebrew/bin on it, so
+  # PATH is fixed up once for this whole activation block rather than per call.
   home.activation.installAxiTools = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    if ! command -v gh-axi >/dev/null 2>&1; then
-      run npm install -g gh-axi
-      run gh-axi setup hooks
+    export PATH="/opt/homebrew/bin:$PATH"
+    npm=/opt/homebrew/bin/npm
+    if [ ! -x /opt/homebrew/bin/gh-axi ]; then
+      run "$npm" install -g gh-axi
+      run /opt/homebrew/bin/gh-axi setup hooks
     fi
-    if ! command -v chrome-devtools-axi >/dev/null 2>&1; then
-      run npm install -g chrome-devtools-axi
-      run chrome-devtools-axi setup hooks
+    if [ ! -x /opt/homebrew/bin/chrome-devtools-axi ]; then
+      run "$npm" install -g chrome-devtools-axi
+      run /opt/homebrew/bin/chrome-devtools-axi setup hooks
     fi
-    if ! command -v lavish-axi >/dev/null 2>&1; then
-      run npm install -g lavish-axi
-      run lavish-axi setup hooks
+    if [ ! -x /opt/homebrew/bin/lavish-axi ]; then
+      run "$npm" install -g lavish-axi
+      run /opt/homebrew/bin/lavish-axi setup hooks
     fi
-    if ! command -v tasks-axi >/dev/null 2>&1; then
-      run npm install -g tasks-axi
+    if [ ! -x /opt/homebrew/bin/tasks-axi ]; then
+      run "$npm" install -g tasks-axi
     fi
-    if ! command -v quota-axi >/dev/null 2>&1; then
-      run npm install -g quota-axi
+    if [ ! -x /opt/homebrew/bin/quota-axi ]; then
+      run "$npm" install -g quota-axi
     fi
   '';
 }
