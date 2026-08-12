@@ -58,6 +58,13 @@
       "wezterm"
       "claude-code"
       "copilot-cli"
+      "signal"
+      "telegram"
+      "whatsapp"
+      "brave-browser"
+      "docker-desktop"
+      "rectangle"
+      "google-drive"
     ];
   };
 }
