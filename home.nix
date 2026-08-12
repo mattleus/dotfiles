@@ -35,6 +35,19 @@ in
       bindkey '^f' autosuggest-accept
       # Automatically include hidden files in tab completion and wildcards (*)
       setopt globdots
+
+      # Mirrors the directory-to-identity mapping in programs.git.includes below:
+      # switch the active `gh` account to match whichever account's directory tree we're in.
+      _gh_auth_autoswitch() {
+        local user=""
+        case "$PWD" in
+          "$HOME"/repos/github/mattleus(|/*))    user="mattleus" ;;
+          "$HOME"/repos/github/reliant-ai(|/*))  user="matt-reliant" ;;
+          "$HOME"/repos/github/cohere-ai(|/*))   user="mattleus-cohere" ;;
+        esac
+        [[ -n "$user" ]] && gh auth switch -u "$user" -h github.com &>/dev/null
+      }
+      chpwd_functions+=(_gh_auth_autoswitch)
     '';
     shellAliases = {
       ".." = "cd ..";
