@@ -62,7 +62,6 @@
       "telegram"
       "whatsapp"
       "brave-browser"
-      "docker-desktop"
       "rectangle"
       "google-drive"
       "opensuperwhisper"
