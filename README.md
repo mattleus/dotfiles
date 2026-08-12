@@ -184,6 +184,10 @@ That needs network access once; after that it's offline.
 Neovim and WezTerm both use the rose-pine moon theme.
 Neovim keeps italics off and uses a transparent background on macOS, Windows, and WSL so it matches the terminal setup.
 
+After a fresh install, open OpenSuperWhisper once and grant it Accessibility access in System Settings -> Privacy & Security -> Accessibility (add it manually with `+` if it's not already listed).
+Without that permission it records and transcribes fine, but the synthetic paste it uses to insert text into other apps silently does nothing.
+This can't be granted declaratively - macOS deliberately requires an interactive click for Accessibility, the same as Camera or Microphone access.
+
 ## License
 
 This repo is licensed under MIT No Attribution.
