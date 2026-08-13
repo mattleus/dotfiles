@@ -62,6 +62,7 @@ in
       cc = "claude --dangerously-skip-permissions";
       co = "codex --full-auto";
       ls = "ls -A";
+      hss = "herdr session stop default";
     };
   };
 
