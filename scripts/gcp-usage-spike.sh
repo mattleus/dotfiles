@@ -80,18 +80,56 @@ html_escape() {
   sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'
 }
 
+# Format a numeric string with thousands separators and exactly 2 decimal
+# places, e.g. "7240.4" -> "7,240.40". Handles scientific notation input.
+format_money() {
+  awk -v n="$1" 'BEGIN{
+    neg = (n < 0); if (neg) n = -n
+    s = sprintf("%.2f", n)
+    split(s, parts, ".")
+    intpart = parts[1]; frac = parts[2]
+    outp = ""; len = length(intpart); c = 0
+    for (i = len; i >= 1; i--) {
+      outp = substr(intpart, i, 1) outp
+      c++
+      if (c % 3 == 0 && i != 1) outp = "," outp
+    }
+    if (neg) outp = "-" outp
+    printf "%s.%s", outp, frac
+  }'
+}
+
+# Format a numeric string as a plain grouped integer, e.g. "24205149.0" or
+# "2.4E7" -> "24,205,149". Handles scientific notation input.
+format_int() {
+  awk -v n="$1" 'BEGIN{
+    neg = (n < 0); if (neg) n = -n
+    s = sprintf("%.0f", n)
+    outp = ""; len = length(s); c = 0
+    for (i = len; i >= 1; i--) {
+      outp = substr(s, i, 1) outp
+      c++
+      if (c % 3 == 0 && i != 1) outp = "," outp
+    }
+    if (neg) outp = "-" outp
+    printf "%s", outp
+  }'
+}
+
 # Convert CSV (as produced by `bq query --format=csv`) into an HTML <table>.
 # Reads CSV from stdin, writes HTML to stdout. Assumes no embedded commas or
-# quoted fields, which holds for all queries in this script.
+# quoted fields, which holds for all queries in this script. Cost and usage
+# columns (matched by header name) are rendered with grouped-thousands
+# formatting.
 csv_to_html_table() {
-  local ncols=0
+  local -a headers=()
   local row_index=0
   echo "<table>"
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     IFS=',' read -r -a fields <<<"$line"
     if [ "$row_index" -eq 0 ]; then
-      ncols=${#fields[@]}
+      headers=("${fields[@]}")
       echo "<thead><tr>"
       for f in "${fields[@]}"; do
         echo "<th>$(printf '%s' "$f" | html_escape)</th>"
@@ -99,8 +137,18 @@ csv_to_html_table() {
       echo "</tr></thead><tbody>"
     else
       echo "<tr>"
-      for f in "${fields[@]}"; do
-        echo "<td>$(printf '%s' "$f" | html_escape)</td>"
+      for i in "${!fields[@]}"; do
+        local col="${headers[$i]:-}"
+        local val="${fields[$i]}"
+        local display="$val"
+        local cls=""
+        if [ -n "$val" ]; then
+          case "$col" in
+            cost|total_cost) display="$(format_money "$val")"; cls=" class=\"num\"" ;;
+            usage_amount|total_usage_amount) display="$(format_int "$val")"; cls=" class=\"num\"" ;;
+          esac
+        fi
+        echo "<td${cls}>$(printf '%s' "$display" | html_escape)</td>"
       done
       echo "</tr>"
     fi
@@ -157,6 +205,7 @@ cat <<HTML
   h2 { font-size: 1.15rem; border-bottom: 1px solid #ddd; padding-bottom: 0.4rem; }
   table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
   th, td { border: 1px solid #ccc; padding: 0.4rem 0.7rem; text-align: left; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
   th { background: #333; color: #fff; position: sticky; top: 0; }
   tbody tr:nth-child(even) { background: #f4f4f4; }
   tbody tr:hover { background: #eaf2ff; }
