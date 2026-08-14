@@ -124,7 +124,7 @@ format_int() {
 csv_to_html_table() {
   local -a headers=()
   local row_index=0
-  echo "<table>"
+  echo "<table class=\"sortable\">"
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     IFS=',' read -r -a fields <<<"$line"
@@ -142,13 +142,14 @@ csv_to_html_table() {
         local val="${fields[$i]}"
         local display="$val"
         local cls=""
+        local sortval=""
         if [ -n "$val" ]; then
           case "$col" in
-            cost|total_cost) display="$(format_money "$val")"; cls=" class=\"num\"" ;;
-            usage_amount|total_usage_amount) display="$(format_int "$val")"; cls=" class=\"num\"" ;;
+            cost|total_cost) display="$(format_money "$val")"; cls=" class=\"num\""; sortval=" data-sort=\"$(printf '%s' "$val" | html_escape)\"" ;;
+            usage_amount|total_usage_amount) display="$(format_int "$val")"; cls=" class=\"num\""; sortval=" data-sort=\"$(printf '%s' "$val" | html_escape)\"" ;;
           esac
         fi
-        echo "<td${cls}>$(printf '%s' "$display" | html_escape)</td>"
+        echo "<td${cls}${sortval}>$(printf '%s' "$display" | html_escape)</td>"
       done
       echo "</tr>"
     fi
@@ -211,6 +212,9 @@ cat <<HTML
   tbody tr:hover { background: #eaf2ff; }
   .empty-note { color: #666; font-style: italic; }
   .fallback-note { background: #fff8e1; border: 1px solid #e6c860; padding: 0.75rem 1rem; border-radius: 4px; color: #6b5300; }
+  table.sortable th { cursor: pointer; user-select: none; }
+  table.sortable th:hover { background: #4a4a4a; }
+  table.sortable th.sorted { background: #1a4d8f; }
 </style>
 </head>
 <body>
@@ -350,6 +354,48 @@ fi
 rm -f /tmp/gcp-usage-spike-report5.csv /tmp/gcp-usage-spike-report5.err
 echo "</section>"
 
+cat <<'HTML'
+<script>
+document.querySelectorAll('table.sortable').forEach(function (table) {
+  var thead = table.tHead;
+  if (!thead) return;
+  var ths = Array.prototype.slice.call(thead.querySelectorAll('th'));
+
+  function cellValue(row, colIndex) {
+    var cell = row.cells[colIndex];
+    if (!cell) return '';
+    return cell.hasAttribute('data-sort') ? cell.getAttribute('data-sort') : cell.textContent.trim();
+  }
+
+  ths.forEach(function (th, colIndex) {
+    if (!th.dataset.label) th.dataset.label = th.textContent.trim();
+    th.addEventListener('click', function () {
+      var dir = th.dataset.sortDir === 'asc' ? 'desc' : 'asc';
+      ths.forEach(function (other) {
+        delete other.dataset.sortDir;
+        other.classList.remove('sorted');
+        other.textContent = other.dataset.label;
+      });
+      th.dataset.sortDir = dir;
+      th.classList.add('sorted');
+      th.textContent = th.dataset.label + (dir === 'asc' ? ' ▲' : ' ▼');
+
+      var tbody = table.tBodies[0];
+      var rows = Array.prototype.slice.call(tbody.rows);
+      rows.sort(function (a, b) {
+        var av = cellValue(a, colIndex), bv = cellValue(b, colIndex);
+        var an = parseFloat(av), bn = parseFloat(bv);
+        var cmp = (av !== '' && bv !== '' && !isNaN(an) && !isNaN(bn))
+          ? an - bn
+          : av.localeCompare(bv, undefined, { numeric: true });
+        return dir === 'asc' ? cmp : -cmp;
+      });
+      rows.forEach(function (row) { tbody.appendChild(row); });
+    });
+  });
+});
+</script>
+HTML
 echo "</body></html>"
 } > "$OUTPUT_HTML"
 
