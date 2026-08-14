@@ -52,7 +52,7 @@ set -euo pipefail
 BILLING_TABLE="${BILLING_TABLE:-reliant-ai-data.billing_data.gcp_billing_export_v1_01F68A_65DD13_D61FC1}"
 SERVICES="${SERVICES:-Vertex AI}"
 DAYS="${DAYS:-3}"
-OUTPUT_HTML="${OUTPUT_HTML:-gcp-usage-report-$(date +%Y%m%d-%H%M%S).html}"
+OUTPUT_HTML="/tmp/${OUTPUT_HTML:-gcp-usage-report-$(date +%Y%m%d-%H%M%S).html}"
 RESOURCE_BILLING_TABLE="${RESOURCE_BILLING_TABLE:-}"
 AUDIT_LOG_TABLE="${AUDIT_LOG_TABLE:-}"
 
