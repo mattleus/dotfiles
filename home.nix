@@ -63,6 +63,8 @@ in
       co = "codex --full-auto";
       ls = "ls -A";
       hss = "herdr session stop default";
+      cdd = "cd ~/.dotfiles";
+      docc = "docker-compose"
     };
   };
 
