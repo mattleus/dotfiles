@@ -1,4 +1,4 @@
-{ user, ... }:
+{ user, pkgs, ... }:
 
 {
   # Determinate already manages the Nix daemon, so nix-darwin shouldn't.
@@ -53,6 +53,7 @@
       "sqlite"
       "clippy"
       "treehouse"
+      "docker"
     ];
     casks = [
       "wezterm"
@@ -67,4 +68,7 @@
       "opensuperwhisper"
     ];
   };
+  environment.systemPackages = with pkgs; [
+    docker-compose
+  ];
 }
