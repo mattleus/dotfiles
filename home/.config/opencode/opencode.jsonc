@@ -1,3 +1,69 @@
 {
-  "$schema": "https://opencode.ai/config.json"
+  "$schema": "https://opencode.ai/config.json",
+  "share": "disabled",
+  "autoshare": false,
+  "autoupdate": true,
+  "provider": {
+    "cohere-oss": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Cohere OSS",
+      "options": {
+        "baseURL": "https://api.oss-models-d8hv27.cloud.cohere.com/compatibility/v1/"
+      },
+      "models": {
+        "glm-5-2-nvfp4": {
+          "name": "GLM-5.2 (NVFP4)",
+          "limit": {
+            "context": 320000,
+            "output": 57680
+          },
+          "interleaved": {
+            "field": "reasoning_content"
+          },
+          "cost": {
+            "input": 1.4,
+            "cache_read": 0.26,
+            "output": 4.4
+          }
+        },
+
+        // GLM-5.2 FP8 is also available.
+        // "glm-5-2-fp8": {
+        //   "name": "GLM-5.2 (FP8)",
+        //   "limit": {
+        //     "context": 270000,
+        //     "output": 57680
+        //   },
+        //   "interleaved": {
+        //     "field": "reasoning_content"
+        //   },
+        //   "cost": {
+        //     "input": 1.4,
+        //     "cache_read": 0.26,
+        //     "output": 4.4
+        //   }
+        // },
+
+        "deepseek-v4-flash-0731": {
+          "name": "DeepSeek V4 Flash 0731",
+          "limit": {
+            "context": 1048576,
+            "output": 32768
+          },
+          "cost": {
+		        "input": 0.14,
+		        "cache_read": 0.0028,
+		        "output": 0.28
+		      },
+          "interleaved": {
+            "field": "reasoning"
+          }
+        }
+      }
+    }
+
+    // Keep any existing providers here, separated by commas.
+    // "cohere-staging": { ... },
+    // "cohere": { ... }
+  }
 }
