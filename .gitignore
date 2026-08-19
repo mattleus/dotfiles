@@ -17,3 +17,7 @@ result-*
 
 # no-mistakes local validation state - never commit in this public repo
 .no-mistakes/
+
+# Machine-local environment variables (API keys, tokens, etc) sourced by home.nix's
+# zsh initContent - real values only ever live here, never in a tracked file.
+/home/env.local

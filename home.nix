@@ -51,6 +51,10 @@ in
         [[ -n "$user" ]] && gh auth switch -u "$user" -h github.com &>/dev/null
       }
       chpwd_functions+=(_gh_auth_autoswitch)
+
+      # Machine-local environment variables (API keys, tokens, etc) - never committed,
+      # see home/env.local in .gitignore. Add new ones there as future needs come up.
+      [ -f "${dotfiles}/home/env.local" ] && source "${dotfiles}/home/env.local"
     '';
     shellAliases = {
       ".." = "cd ..";
