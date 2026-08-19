@@ -64,7 +64,7 @@ in
       ls = "ls -A";
       hss = "herdr session stop default";
       cdd = "cd ~/.dotfiles";
-      docc = "docker-compose"
+      docc = "docker-compose";
     };
   };
 
@@ -171,6 +171,8 @@ in
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.config/nvim";
   home.file.".config/herdr".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.config/herdr";
+  home.file.".config/opencode".source =
+    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.config/opencode";
   home.file.".claude/settings.json".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.claude/settings.json";
   home.file.".claude/statusline-command.sh".source=
@@ -190,8 +192,6 @@ in
   home.file.".claude/CLAUDE.md".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/AGENTS.md";
   home.file.".codex/AGENTS.md".source =
-    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/AGENTS.md";
-  home.file.".config/opencode/AGENTS.md".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/AGENTS.md";
 
   # firstmate toolchain: none of these have a Homebrew formula or nixpkgs package, so they're
