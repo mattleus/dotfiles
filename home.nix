@@ -264,4 +264,19 @@ in
       run "$npm" install -g quota-axi
     fi
   '';
+
+  # mattpocock/skills (grill-me, tdd, code-review, et al): no Homebrew formula or nixpkgs
+  # package, so same home.activation pattern as the blocks above. The skills CLI puts a
+  # canonical copy in ~/.agents/skills (codex's user scope and opencode's universal path
+  # both read it) and symlinks into ~/.claude/skills and ~/.pi/agent/skills, covering all
+  # four agents. Guarded on the canonical copy so rebuilds are no-ops once installed.
+  home.activation.installMattPocockSkills = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    export PATH="/opt/homebrew/bin:$PATH"
+    if [ ! -d "$HOME/.agents/skills/grill-me" ]; then
+      run env DISABLE_TELEMETRY=1 /opt/homebrew/bin/npx --yes skills@latest add mattpocock/skills \
+        --skill setup-matt-pocock-skills --skill grill-me --skill grill-with-docs \
+        --skill tdd --skill diagnosing-bugs --skill code-review \
+        --global --agent claude-code --agent codex --agent opencode --agent pi --yes
+    fi
+  '';
 }

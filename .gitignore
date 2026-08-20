@@ -21,3 +21,7 @@ result-*
 # Machine-local environment variables (API keys, tokens, etc) sourced by home.nix's
 # zsh initContent - real values only ever live here, never in a tracked file.
 /home/env.local
+
+# opencode skills are installed at runtime by the skills CLI (see installMattPocockSkills
+# in home.nix) into ~/.config/opencode, which symlinks into this repo - never commit them.
+/home/.config/opencode/skills/
