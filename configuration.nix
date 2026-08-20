@@ -53,7 +53,6 @@
       "sqlite"
       "clippy"
       "treehouse"
-      "docker"
     ];
     casks = [
       "wezterm"
@@ -66,9 +65,7 @@
       "rectangle"
       "google-drive"
       "opensuperwhisper"
+      "docker-desktop"
     ];
   };
-  environment.systemPackages = with pkgs; [
-    docker-compose
-  ];
 }
