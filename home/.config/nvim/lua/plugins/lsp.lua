@@ -37,17 +37,21 @@ return {
       vim.lsp.enable('yamlls')    -- yaml
       vim.lsp.enable('lua_ls')    -- lua
 
-      -- gd already lives in snacks (navigation.lua). Neovim 0.11+ also maps
-      -- grn (rename), gra (code action), grr (references) once a server attaches;
-      -- the leader ones below just make them show up in which-key.
+      -- gd already lives in snacks (navigation.lua). Neovim 0.11+ maps
+      -- grn (rename), gra (code action), grt (type definition) once a server attaches;
+      -- buffer-local maps below (override the grr/gri/gO defaults so everything goes
+      -- through the snacks picker: live preview, closes on <enter> instead of a loclist).
       vim.api.nvim_create_autocmd('LspAttach', {
         callback = function(event)
           local map = function(keys, fn, desc)
             vim.keymap.set('n', keys, fn, { buffer = event.buf, desc = desc })
           end
+          map('gD', vim.lsp.buf.declaration, 'Goto Declaration')
+          map('grr', function() Snacks.picker.lsp_references() end, 'References')
+          map('gri', function() Snacks.picker.lsp_implementations() end, 'Implementations')
+          map('gO', function() Snacks.picker.lsp_symbols() end, 'File Symbols')  -- "go to method"
           map('<leader>rn', vim.lsp.buf.rename, 'Rename Symbol')
           map('<leader>ca', vim.lsp.buf.code_action, 'Code Action')
-          map('<leader>r', function() Snacks.picker.lsp_references() end, 'References')
           map('[d', function() vim.diagnostic.jump({ count = -1 }) end, 'Prev Diagnostic')
           map(']d', function() vim.diagnostic.jump({ count = 1 }) end, 'Next Diagnostic')
         end,
