@@ -18,6 +18,13 @@ in
     lazygit
     mc        # midnight commander
     neovim
+    # LSP servers for nvim (configured in home/.config/nvim/lua/plugins/lsp.lua).
+    # Installed via nix, not mason, so the machine stays reproducible.
+    pyright                       # python
+    typescript-language-server    # typescript / javascript / react
+    vscode-langservers-extracted  # json
+    yaml-language-server          # yaml
+    lua-language-server           # lua (this very config)
     google-cloud-sdk  # gcloud CLI
     nodejs    # general JS/TS dev use
     opencode  # AI coding agent for the terminal
