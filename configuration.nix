@@ -65,7 +65,6 @@
       "rectangle"
       "google-drive"
       "opensuperwhisper"
-      "docker-desktop"
     ];
   };
 }

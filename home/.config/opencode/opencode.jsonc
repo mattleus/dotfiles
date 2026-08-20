@@ -10,7 +10,7 @@
       "name": "Cohere OSS",
       "options": {
         "baseURL": "https://api.oss-models-d8hv27.cloud.cohere.com/compatibility/v1/",
-        "apiKey": "{env:COHERE_OSS_API_KEY}"
+        "apiKey": "{env:COHERE_API_KEY}"
       },
       "models": {
         "glm-5-2-nvfp4": {
@@ -62,7 +62,7 @@
           }
         }
       }
-    }
+    },
 
     // Keep any existing providers here, separated by commas.
     // "cohere-staging": { ... },
@@ -89,7 +89,7 @@
       "name": "OSS Model Vault (V2)",
       "options": {
         "baseURL": "https://api.oss-models-5kszmt.cloud.cohere.com/v1",
-        "apiKey": "{env:COHERE_API_KEY_PRD}"
+        "apiKey": "{env:COHERE_API_KEY}"
       },
       "models": {
         "kimi-k3-gb200": {
@@ -97,7 +97,7 @@
           "reasoning": true,
           "tool_call": true,
           "interleaved": {
-            "field": "reasoning"
+            "field": "reasoning_content"
           },
           // Total context length is 1,000,000. Use the same 90%/10% split as
           // the other vault model.
