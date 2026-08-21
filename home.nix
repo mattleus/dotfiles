@@ -273,12 +273,11 @@ in
   home.activation.installMattPocockSkills = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     export PATH="/opt/homebrew/bin:$PATH"
     if [ ! -d "$HOME/.agents/skills/grill-me" ]; then
-      # grilling + domain-modeling aren't optional extras: grill-me and grill-with-docs
-      # are shims that invoke them, so without them those two skills are broken shorthands.
+      # Whole pack via --skill '*': the orchestrator skills shim to primitive ones at
+      # runtime ("call the skill tool with grilling", etc), and curating a subset leaves
+      # those shims dead-ending - '*' keeps the dependency closure complete by construction.
       run env DISABLE_TELEMETRY=1 /opt/homebrew/bin/npx --yes skills@latest add mattpocock/skills \
-        --skill setup-matt-pocock-skills --skill grill-me --skill grill-with-docs \
-        --skill tdd --skill diagnosing-bugs --skill code-review \
-        --skill grilling --skill domain-modeling \
+        --skill '*' \
         --global --agent claude-code --agent codex --agent opencode --agent pi --yes
     fi
   '';
