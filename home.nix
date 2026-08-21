@@ -70,6 +70,7 @@ in
       pull = "git pull";
       gs = "git status";
       m = "git switch main";
+      gc = "git commit -m";
       cc = "claude --dangerously-skip-permissions";
       co = "codex --full-auto";
       ls = "ls -A";
