@@ -119,6 +119,8 @@ If you don't use it, just remove it from `brews` in your copy.
 Each block checks whether its tool is already on `PATH` (or the clone directory already exists) before doing anything, so re-running `rebuild.sh` is a no-op once installed.
 Remove these blocks from your copy if you don't use firstmate.
 
+**About opencode:** unlike the tools above, opencode *does* have a Homebrew formula and a nixpkgs package. It's still installed via `home.activation.installOpenCode` (the official installer into `~/.opencode/bin`, added to PATH by `home.sessionPath`) so that its in-app self-update works - opencode prompts when a new version is out and re-runs its installer, which needs a user-writable binary. A Nix store install is read-only and can't be replaced, so opencode stays out of `home.packages`. Update it from inside opencode whenever it prompts.
+
 **Heads-up:**
 
 - `home/AGENTS.md` is my personal agent policy, and `home.nix` installs it for Claude, Codex, and opencode.
@@ -187,6 +189,7 @@ Neovim keeps italics off and uses a transparent background on macOS, Windows, an
 After a fresh install, open OpenSuperWhisper once and grant it Accessibility access in System Settings -> Privacy & Security -> Accessibility (add it manually with `+` if it's not already listed).
 Without that permission it records and transcribes fine, but the synthetic paste it uses to insert text into other apps silently does nothing.
 This can't be granted declaratively - macOS deliberately requires an interactive click for Accessibility, the same as Camera or Microphone access.
+It launches at login automatically via a nix-darwin user LaunchAgent (`launchd.user.agents.opensuperwhisper` in `configuration.nix`), so leave the app's own "launch at login" toggle off to avoid it starting twice.
 
 ## License
 
