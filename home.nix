@@ -27,7 +27,6 @@ in
     lua-language-server           # lua (this very config)
     google-cloud-sdk  # gcloud CLI
     nodejs    # general JS/TS dev use
-    opencode  # AI coding agent for the terminal
     # the font everything renders in
     nerd-fonts.hack
     pkgs.rectangle
@@ -35,7 +34,12 @@ in
   fonts.fontconfig.enable = true;
   home.sessionVariables.EDITOR = "nvim";
   # so tools installed by the activation scripts below (no-mistakes) resolve on PATH
-  home.sessionPath = [ "${config.home.homeDirectory}/.local/bin" ];
+  # opencode also lands here: the installOpenCode activation block installs it to
+  # ~/.opencode/bin so opencode can update itself in-app (a Nix store install is read-only).
+  home.sessionPath = [
+    "${config.home.homeDirectory}/.local/bin"
+    "${config.home.homeDirectory}/.opencode/bin"
+  ];
 
   programs.zsh = {
     enable = true;
@@ -205,6 +209,19 @@ in
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/AGENTS.md";
   home.file.".codex/AGENTS.md".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/AGENTS.md";
+
+  # opencode: deliberately NOT a nixpkgs package or Homebrew formula (it has both) so that its
+  # in-app self-update works - opencode prompts when a new version exists and re-runs its own
+  # installer, which needs a user-writable binary. The official installer puts it in
+  # ~/.opencode/bin with --no-modify-path (home.sessionPath above adds it to PATH declaratively,
+  # so the installer never touches shell config files). Guarded on the binary already existing;
+  # from then on opencode owns its own updates and rebuilds stay no-ops.
+  home.activation.installOpenCode = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    if [ ! -x "$HOME/.opencode/bin/opencode" ]; then
+      run mkdir -p "$HOME/.opencode/bin"
+      run bash -c "curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path"
+    fi
+  '';
 
   # firstmate toolchain: none of these have a Homebrew formula or nixpkgs package, so they're
   # installed declaratively via home.activation instead of by hand. Each block guards on the

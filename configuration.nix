@@ -33,6 +33,17 @@
       "com.apple.sound.uiaudio.enabled" = 0;  # silence other UI sounds (empty trash, lock, etc.)
     };
   };
+  # OpenSuperWhisper starts at login as a menu bar app. A user LaunchAgent is the declarative
+  # way to get that; the app's own "launch at login" toggle registers a non-declarative login
+  # item, so prefer this and leave that toggle off. LimitLoadToSessionType keeps it from firing in
+  # non-GUI (SSH-only) sessions.
+  launchd.user.agents.opensuperwhisper = {
+    serviceConfig = {
+      ProgramArguments = [ "/Applications/OpenSuperWhisper.app/Contents/MacOS/OpenSuperWhisper" ];
+      RunAtLoad = true;
+      LimitLoadToSessionType = "Aqua";
+    };
+  };
   nix-homebrew = {
     enable = true;
     inherit user;
