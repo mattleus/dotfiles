@@ -56,6 +56,7 @@ in
         local user=""
         case "$PWD" in
           "$HOME"/repos/github/mattleus(|/*))    user="mattleus" ;;
+          "$HOME"/repos/public(|/*))             user="mattleus" ;;
           "$HOME"/repos/github/reliant-ai(|/*))  user="matt-reliant" ;;
           "$HOME"/repos/github/cohere-ai(|/*))   user="mattleus-cohere" ;;
         esac
@@ -114,6 +115,13 @@ in
       }
       {
         condition = "gitdir:~/repos/github/mattleus/";
+        contents = {
+          user.email = "matthew.leus@gmail.com";
+          url."git@github-personal:".insteadOf = "git@github.com:";
+        };
+      }
+      {
+        condition = "gitdir:~/repos/public/";
         contents = {
           user.email = "matthew.leus@gmail.com";
           url."git@github-personal:".insteadOf = "git@github.com:";
