@@ -64,6 +64,7 @@
       "sqlite"
       "clippy"
       "treehouse"
+      "git-filter-repo"
     ];
     casks = [
       "wezterm"
