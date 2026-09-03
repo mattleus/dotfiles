@@ -40,3 +40,16 @@ vim.api.nvim_create_autocmd({ 'FocusGained', 'BufEnter', 'CursorHold' }, {
   end,
 })
 
+-- throw away unsaved edits in every buffer, reloading all files from disk.
+-- the mirror image of :wa; bang skips the confirmation.
+vim.api.nvim_create_user_command('DiscardAllBuffers', function(opts)
+  if not opts.bang then
+    if vim.fn.confirm('Discard unsaved changes in ALL buffers?', '&Yes\n&No', 2) ~= 1 then return end
+  end
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].modified and vim.bo[buf].buflisted and vim.bo[buf].buftype == '' then
+      vim.api.nvim_buf_call(buf, function() vim.cmd('silent! edit!') end)
+    end
+  end
+end, { bang = true })
+
