@@ -12,7 +12,15 @@ return {
       'MunifTanjim/nui.nvim',
       'nvim-tree/nvim-web-devicons',
     },
-    keys = { { '<leader>t', '<cmd>Neotree toggle<cr>', desc = 'File Tree' } },
+    opts = {
+      filesystem = {
+        follow_current_file = { enabled = true },  -- tree tracks whatever buffer you're in
+      },
+    },
+    keys = {
+      { '<leader>t', '<cmd>Neotree toggle<cr>', desc = 'File Tree' },
+      { '<leader>R', '<cmd>Neotree reveal<cr>', desc = 'Reveal File in Tree' },
+    },
   },
   {
     'folke/snacks.nvim',
