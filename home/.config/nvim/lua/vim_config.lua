@@ -31,3 +31,12 @@ vim.api.nvim_create_user_command('UndoAllBuffers', function()
   end
 end, {})
 
+-- reload buffers when something outside nvim changes the file on disk
+-- (git restore/switch, formatters, agent edits). edit is still shown.
+o.autoread = true
+vim.api.nvim_create_autocmd({ 'FocusGained', 'BufEnter', 'CursorHold' }, {
+  callback = function()
+    if vim.fn.mode() ~= 'c' then vim.cmd('checktime') end
+  end,
+})
+

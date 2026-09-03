@@ -12,16 +12,28 @@ return {
       'MunifTanjim/nui.nvim',
       'nvim-tree/nvim-web-devicons',
     },
-    opts = {
-      filesystem = {
-        follow_current_file = { enabled = true },  -- tree tracks whatever buffer you're in
-        window = {
-          mappings = {
-            ['gr'] = 'git_revert_file',  -- discard local changes for the highlighted file (asks first)
+    -- opts as a function so it evaluates at plugin load time; a plain table
+    -- would require neo-tree.* before the plugin is even on the runtimepath
+    opts = function()
+      return {
+        filesystem = {
+          follow_current_file = { enabled = true },  -- tree tracks whatever buffer you're in
+          window = {
+            mappings = {
+              ['gr'] = 'git_revert_file',  -- discard local changes for the highlighted file (asks first)
+            },
           },
         },
-      },
-    },
+        -- after git ops from the tree (gr revert etc.), rescan open buffers
+        -- so a restored file reloads instead of showing the stale copy
+        event_handlers = {
+          {
+            event = require('neo-tree.events').GIT_EVENT,
+            handler = function() vim.cmd('checktime') end,
+          },
+        },
+      }
+    end,
     keys = {
       { '<leader>t', '<cmd>Neotree toggle<cr>', desc = 'File Tree' },
       { '<leader>R', '<cmd>Neotree reveal<cr>', desc = 'Reveal File in Tree' },
