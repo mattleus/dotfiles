@@ -49,7 +49,8 @@ return {
           map('gD', vim.lsp.buf.declaration, 'Goto Declaration')
           map('grr', function() Snacks.picker.lsp_references() end, 'References')
           map('gri', function() Snacks.picker.lsp_implementations() end, 'Implementations')
-          map('gO', function() Snacks.picker.lsp_symbols() end, 'File Symbols')  -- "go to method"
+          map('go', function() Snacks.picker.lsp_symbols() end, 'File Symbols')  -- "go to method" (this file)
+          map('gO', function() Snacks.picker.lsp_workspace_symbols() end, 'Workspace Symbols')  -- across the repo, like IntelliJ Cmd+N
           map('<leader>rn', vim.lsp.buf.rename, 'Rename Symbol')
           map('<leader>ca', vim.lsp.buf.code_action, 'Code Action')
           map('[d', function() vim.diagnostic.jump({ count = -1 }) end, 'Prev Diagnostic')
