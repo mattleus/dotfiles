@@ -15,6 +15,11 @@ return {
     opts = {
       filesystem = {
         follow_current_file = { enabled = true },  -- tree tracks whatever buffer you're in
+        window = {
+          mappings = {
+            ['gr'] = 'git_revert_file',  -- discard local changes for the highlighted file (asks first)
+          },
+        },
       },
     },
     keys = {
