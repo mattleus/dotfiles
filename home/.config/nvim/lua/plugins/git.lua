@@ -2,7 +2,11 @@ return {
   {
     'NeogitOrg/neogit',
     dependencies = { 'nvim-lua/plenary.nvim', 'sindrets/diffview.nvim' },
-    keys = { { '<leader>g', function() require('neogit').open() end, desc = 'Neogit' } },
+    keys = {
+      { '<leader>gg', function() require('neogit').open() end, desc = 'Neogit' },
+      { '<leader>gd', '<cmd>Gitsigns diffthis main<cr>', desc = 'Diff File vs main' },
+      { '<leader>gD', '<cmd>DiffviewOpen main...<cr>', desc = 'Diff Project vs main' },
+    },
   },
   {
     'lewis6991/gitsigns.nvim',
