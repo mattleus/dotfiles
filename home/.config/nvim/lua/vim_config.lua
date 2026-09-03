@@ -21,3 +21,13 @@ vim.api.nvim_create_autocmd({ 'CursorMoved', 'InsertEnter', 'TextChanged' }, {
   end,
 })
 
+-- undo across every open buffer; u alone only undoes the current file,
+-- which is half a story after a project-wide LSP rename (Space-rn)
+vim.api.nvim_create_user_command('UndoAllBuffers', function()
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_loaded(buf) then
+      vim.api.nvim_buf_call(buf, function() vim.cmd('silent! undo') end)
+    end
+  end
+end, {})
+
