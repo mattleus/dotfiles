@@ -8,4 +8,7 @@ vim.cmd([[ xnoremap <expr> p 'pgv"'.v:register.'y' ]])
 for dir, key in pairs({ h = 'Left', j = 'Down', k = 'Up', l = 'Right' }) do
   vim.keymap.set('n', '<C-' .. dir .. '>', '<C-w>' .. dir, { desc = 'Focus ' .. key .. ' Window' })
 end
+-- duplicate line/selection below; :t copies without touching registers (clipboard stays intact)
+vim.keymap.set('n', '<leader>d', ':t.<CR>', { desc = 'Duplicate Line Below' })
+vim.keymap.set('x', '<leader>d', ":t'><CR>", { desc = 'Duplicate Selection Below' })
 
