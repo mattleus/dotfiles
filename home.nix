@@ -231,11 +231,15 @@ in
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.pi/agent/settings.json";
 
   # pi-box: run Pi unrestricted inside a container on colima's docker VM (see
-  # docker/agent-box/ and the README). Repo-authored script, linked into
-  # ~/.local/bin (already on PATH via home.sessionPath) like any other
-  # authored file - editing it here is live, no rebuild needed.
+  # docker/agent-box/ and the README). agentbox: the long-lived workstation
+  # container on the same image (sshd as init, pi/herdr/no-mistakes/treehouse
+  # inside). Both repo-authored scripts, linked into ~/.local/bin (already on
+  # PATH via home.sessionPath) like any other authored file - editing them
+  # here is live, no rebuild needed.
   home.file.".local/bin/pi-box".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.local/bin/pi-box";
+  home.file.".local/bin/agentbox".source =
+    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.local/bin/agentbox";
 
   home.file.".claude/CLAUDE.md".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/AGENTS.md";

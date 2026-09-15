@@ -192,6 +192,32 @@ The image (`docker/agent-box/Dockerfile`: Node LTS, git, gh, ripgrep, Pi) builds
 If colima isn't running, `pi-box` prints `need: colima start` and exits; it never starts or reconfigures the VM itself.
 Commits made inside the container reuse the git identity your host would use for that directory.
 
+## agentbox: the full agent workstation in a container
+
+`agentbox` turns the pi-box image into a long-lived workstation: one container named `agentbox` runs `sshd` as its init, and you ssh in to a zsh login as user `agent` with the whole fleet toolchain (pi, herdr, no-mistakes, treehouse, tmux, gh) unrestricted inside, while the Mac stays untouched.
+
+```sh
+agentbox up       # builds the image if it changed, starts the container, verifies ssh, prints usage
+agentbox ssh      # attach: zsh login landing in ~/firstmate, like on the host
+agentbox stop     # stop; all state lives in the mounted host dirs - nothing is lost
+agentbox status   # container state + ssh reachability
+```
+
+One-time setup, two files under `~/.config/agentbox/` (gitignored, never committed - the `up` subcommand prints this same recipe when they're missing):
+
+```sh
+mkdir -p ~/.config/agentbox && chmod 700 ~/.config/agentbox
+cat > ~/.config/agentbox/env <<'EOF'
+COHERE_API_KEY=<your Cohere key>
+GH_TOKEN=<a fine-grained PAT>
+EOF
+chmod 600 ~/.config/agentbox/env
+```
+
+For `GH_TOKEN`, create a fine-grained personal access token (GitHub -> Settings -> Developer settings -> Personal access tokens -> Fine-grained tokens) limited to only the repositories the box needs (`kunchenguid/firstmate` and any repos you work on inside), Contents read-write. `gh` inside the box authenticates off this token alone; no ssh keys ever enter the box. `agentbox up` also generates a dedicated ed25519 keypair at `~/.config/agentbox/id_agentbox` purely for host-to-box ssh, and editing the env file just takes one `agentbox up` to re-inject (the container is recreated when the file changes).
+
+The mount boundary is exactly three things - `~/repos`, `~/.pi/agent`, and `~/.treehouse`, all read-write at the same absolute paths as the host. The box's `agent` user has `/Users/matt` as HOME and the image symlinks `/Users/matt/firstmate` -> `/Users/matt/repos/public/firstmate`, exactly as on the host, so fleet records, pi sessions, and treehouse-pooled worktrees all resolve with identical spellings inside and out: the fleet runs inside the box, but shares the host's fleet home completely. Host `~/.ssh` and the rest of HOME stay out - `~/.ssh` is never mounted, which is why gh-in-box works off `GH_TOKEN` rather than any key.
+
 ## Notes
 
 The first time you launch `nvim`, it bootstraps [lazy.nvim](https://github.com/folke/lazy.nvim) by cloning plugins from GitHub.

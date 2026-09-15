@@ -22,6 +22,11 @@ result-*
 # zsh initContent - real values only ever live here, never in a tracked file.
 /home/env.local
 
+# agentbox env file lives at ~/.config/agentbox/env on the host (COHERE_API_KEY,
+# GH_TOKEN, ssh keypair) - see README. It is never part of this repo; if a copy
+# is ever stashed under the repo's home/ tree, it must not be committed.
+/home/.config/agentbox/
+
 # opencode skills are installed at runtime by the skills CLI (see installMattPocockSkills
 # in home.nix) into ~/.config/opencode, which symlinks into this repo - never commit them.
 /home/.config/opencode/skills/

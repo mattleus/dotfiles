@@ -24,6 +24,7 @@ done
 bin_dir="$(cd -P "$(dirname "$self")" && pwd)"
 repo_root="$(cd -P "$bin_dir/../../.." && pwd)"
 dockerfile="$repo_root/docker/agent-box/Dockerfile"
+init_script="$repo_root/docker/agent-box/agentbox-init"
 pi_config="$repo_root/home/.pi/agent"
 
 # The docker daemon lives in colima's VM; this script checks but never starts,
@@ -41,9 +42,11 @@ case "$work_dir" in
   *) echo "pi-box: run from a project directory under $HOME" >&2; exit 1 ;;
 esac
 
-# Rebuild only when the Dockerfile changed: its sha256 is stored on the image
-# as a label at build time, compared against the file on disk on each run.
-want_hash="$(shasum -a 256 "$dockerfile" | awk '{print $1}')"
+# Rebuild only when the build inputs changed: the combined sha256 of the
+# Dockerfile and agentbox-init (the image's two build inputs, shared with the
+# agentbox wrapper) is stored on the image as a label at build time, compared
+# against the files on disk on each run.
+want_hash="$(shasum -a 256 "$dockerfile" "$init_script" | shasum -a 256 | awk '{print $1}')"
 have_hash="$(docker image inspect agent-box:latest \
   --format '{{ index .Config.Labels "pi-box.dockerfile-sha256" }}' 2>/dev/null || true)"
 if [ "$want_hash" != "$have_hash" ]; then
@@ -81,11 +84,11 @@ fi
 # and extensions are repo-authored, never written by Pi, so read-only.
 exec docker run --rm -it \
   -v "$work_dir:$work_dir" \
-  -v "$HOME/.pi/agent:/home/agent/.pi/agent" \
-  -v "$pi_config/models.json:/home/agent/.pi/agent/models.json" \
-  -v "$pi_config/settings.json:/home/agent/.pi/agent/settings.json" \
-  -v "$pi_config/themes:/home/agent/.pi/agent/themes:ro" \
-  -v "$pi_config/extensions:/home/agent/.pi/agent/extensions:ro" \
+  -v "$HOME/.pi/agent:$HOME/.pi/agent" \
+  -v "$pi_config/models.json:$HOME/.pi/agent/models.json" \
+  -v "$pi_config/settings.json:$HOME/.pi/agent/settings.json" \
+  -v "$pi_config/themes:$HOME/.pi/agent/themes:ro" \
+  -v "$pi_config/extensions:$HOME/.pi/agent/extensions:ro" \
   "${env_args[@]}" \
   -w "$work_dir" \
   agent-box:latest "$@"
