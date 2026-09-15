@@ -291,6 +291,18 @@ in
     fi
   '';
 
+  # Pi coding agent CLI: it HAS a nixpkgs package and a Homebrew formula, but like opencode
+  # it self-updates in place (`pi update self`), which can't replace a binary in the
+  # read-only Nix store (and must not fight Homebrew over Cellar files) - so same pattern
+  # as the axi tools above: Homebrew's npm with its user-writable /opt/homebrew prefix,
+  # guarded on the binary already existing so rebuilds are no-ops.
+  home.activation.installPi = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    if [ ! -x /opt/homebrew/bin/pi ]; then
+      export PATH="/opt/homebrew/bin:$PATH"
+      run /opt/homebrew/bin/npm install -g @earendil-works/pi-coding-agent
+    fi
+  '';
+
   # mattpocock/skills (grill-me, tdd, code-review, et al): no Homebrew formula or nixpkgs
   # package, so same home.activation pattern as the blocks above. The skills CLI puts a
   # canonical copy in ~/.agents/skills (codex's user scope and opencode's universal path
