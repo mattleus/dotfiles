@@ -9,17 +9,24 @@
 #   agentbox stop     stop the container (state survives; `up` resumes it)
 #   agentbox status   container + ssh reachability
 #
-# Mount boundary - only these enter the container, never the whole host $HOME:
+# Mount/auth boundary - only these enter the container, never the whole host $HOME:
 #   - ~/repos, read-write at the SAME absolute path
 #   - ~/.pi/agent, read-write at the SAME absolute path (pi state shared)
 #   - ~/.treehouse, read-write at the SAME absolute path (pooled worktrees stay
 #     continuous between host and box)
 #   - this checkout's managed Pi config files, bound over the ~/.pi/agent
 #     mount (see below; the same trick pi-box uses)
+#   - GitHub parity, re-staged at every up: the host's gh accounts (their
+#     tokens live in the login keychain, unreadable from a Linux container)
+#     are written to ~/.config/agentbox/gh and mounted read-only over the
+#     box's ~/.config/gh, and the host's ssh config + IdentityFiles are copied
+#     into the box's ~/.ssh (a plain bind mount would dangle: the host files
+#     are home-manager symlinks into the Nix store, which the VM can't see).
+#     Nothing is baked into the image.
 # The agent user's HOME inside the box IS /Users/matt, and the image symlinks
 # /Users/matt/firstmate -> /Users/matt/repos/public/firstmate exactly as on
 # the host, so fleet records resolve by both spellings. Everything shares the
-# host fleet home; host ~/.ssh and the rest of HOME stay out.
+# host fleet home; the rest of HOME stays out.
 set -euo pipefail
 
 # Resolve this script's real path (it normally runs as the ~/.local/bin/agentbox
@@ -48,7 +55,7 @@ env_file="$config_dir/env"
 key_file="$config_dir/id_agentbox"
 
 usage() {
-  sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//' >&2
+  sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//' >&2
   exit 1
 }
 
@@ -108,7 +115,10 @@ fi
 
 # --- agentbox up ---
 
-# Secrets: the env file carries the captain's COHERE_API_KEY and GH_TOKEN.
+# Secrets: the env file carries the captain's COHERE_API_KEY. GH_TOKEN is an
+# optional pass-through (it overrides the staged gh accounts inside when set);
+# the box's real GitHub auth is the staged gh accounts + ssh host aliases
+# below, so no PAT is ever required.
 # Source it in a subshell so a syntax error can't kill this script, and so the
 # values never enter this script's own environment on the host.
 if [ ! -f "$env_file" ]; then
@@ -119,18 +129,18 @@ Create it (gitignored, never committed):
   mkdir -p ~/.config/agentbox && chmod 700 ~/.config/agentbox
   cat > ~/.config/agentbox/env <<'ENV'
   COHERE_API_KEY=...
-  GH_TOKEN=...
+  # GH_TOKEN=...   # optional: overrides the staged gh accounts inside
 ENV
   chmod 600 ~/.config/agentbox/env
 
-GH_TOKEN should be a fine-grained personal access token limited to the repos
-the box needs (see README's agentbox section). gh inside the box authenticates
-off this token alone - no ssh keys are ever mounted.
+Only COHERE_API_KEY is required. GitHub access inside the box comes from the
+host's gh accounts and ssh host aliases, staged at every up - see README's
+agentbox section.
 EOF
   exit 1
 fi
-if ! ( set -a; . "$env_file"; set +a; [ -n "${COHERE_API_KEY:-}" ] && [ -n "${GH_TOKEN:-}" ] ) 2>/dev/null; then
-  echo "agentbox: $env_file must set COHERE_API_KEY and GH_TOKEN (bare VAR=value lines)" >&2
+if ! ( set -a; . "$env_file"; set +a; [ -n "${COHERE_API_KEY:-}" ] ) 2>/dev/null; then
+  echo "agentbox: $env_file must set COHERE_API_KEY (bare VAR=value lines; GH_TOKEN optional)" >&2
   exit 1
 fi
 
@@ -142,11 +152,66 @@ if [ ! -d "$HOME/.pi/agent" ]; then
   exit 1
 fi
 
-# Dedicated keypair for the box; the host ~/.ssh is never mounted or consulted.
+# Dedicated keypair for the box; the host ~/.ssh is never mounted (its config
+# and keys are copied in after start - staging below).
 if [ ! -f "$key_file" ]; then
   mkdir -p "$config_dir" && chmod 700 "$config_dir"
   ssh-keygen -q -t ed25519 -N '' -C agentbox -f "$key_file"
 fi
+
+# GitHub parity staging: rebuild the box's gh state from live host state.
+# Host gh keeps account tokens in the login keychain, which a Linux container
+# can't read, so up re-derives a complete hosts.yml - every account's token
+# pulled via `gh auth token --user` - into the private config dir, mounted
+# read-only over the box's ~/.config/gh. Re-staged on every up, so a rotated
+# token or a new account just takes one `agentbox up`.
+gh_src="$HOME/.config/gh/hosts.yml"
+gh_stage="$config_dir/gh"
+ssh_src="$HOME/.ssh"
+if ! command -v gh >/dev/null 2>&1 || [ ! -f "$gh_src" ]; then
+  echo "agentbox: need an authenticated host gh first (gh auth login ...)" >&2
+  exit 1
+fi
+mkdir -p "$gh_stage" && chmod 700 "$gh_stage"
+tmp_hosts="$gh_stage/hosts.yml.tmp"
+: > "$tmp_hosts"
+cur_host=""
+# Walk hosts.yml per host: name, git_protocol, active user, and every account
+# under users: (tokens are absent here - they live in the keychain).
+while IFS="$(printf '\t')" read -r h u p a; do
+  if [ "$h" != "$cur_host" ]; then
+    cur_host="$h"
+    [ -n "$p" ] || p="ssh"
+    atok="$(gh auth token --hostname "$h" --user "$a")" \
+      || { echo "agentbox: gh auth token failed for $a@$h" >&2; rm -f "$tmp_hosts"; exit 1; }
+    printf '%s:\n    git_protocol: %s\n    user: %s\n    oauth_token: %s\n    users:\n' \
+      "$h" "$p" "$a" "$atok" >> "$tmp_hosts"
+  fi
+  utok="$atok"
+  if [ "$u" != "$a" ]; then
+    utok="$(gh auth token --hostname "$h" --user "$u")" \
+      || { echo "agentbox: gh auth token failed for $u@$h" >&2; rm -f "$tmp_hosts"; exit 1; }
+  fi
+  printf '        %s:\n            oauth_token: %s\n' "$u" "$utok" >> "$tmp_hosts"
+done < <(awk '
+  function emit() { for (i = 1; i <= n; i++) printf "%s\t%s\t%s\t%s\n", host, us[i], proto, active }
+  /^[^[:space:]#]/   { emit(); host=$1; sub(/:$/, "", host); proto=""; active=""; n=0; inu=0; next }
+  /^    git_protocol:/ { proto=$2; next }
+  /^    users:/      { inu=1; next }
+  /^    [^[:space:]]/ { inu=0 }
+  /^    user:/       { active=$2; next }
+  /^        [^[:space:]]/ && inu { u=$1; sub(/:$/, "", u); us[++n]=u; next }
+  END { emit() }
+' "$gh_src")
+if [ ! -s "$tmp_hosts" ]; then
+  echo "agentbox: no gh accounts found in $gh_src - run gh auth login on the host" >&2
+  rm -f "$tmp_hosts"
+  exit 1
+fi
+mv "$tmp_hosts" "$gh_stage/hosts.yml"
+chmod 600 "$gh_stage/hosts.yml"
+cp "$HOME/.config/gh/config.yml" "$gh_stage/config.yml" 2>/dev/null || true
+[ -f "$gh_stage/config.yml" ] && chmod 600 "$gh_stage/config.yml"
 
 # Rebuild only when the build inputs changed: their combined sha256 is stored
 # on the image as a label at build time, compared against the files on disk on
@@ -160,15 +225,16 @@ if [ "$want_hash" != "$have_hash" ]; then
     -f "$dockerfile" "$repo_root/docker/agent-box"
 fi
 
-# Recreate the container when the image it runs is stale or the env file
-# changed (docker bakes --env-file values at creation, so a rotated key needs
-# a new container); otherwise start or resume the existing one.
-env_hash="$(shasum -a 256 "$env_file" | awk '{print $1}')"
+# Recreate the container when the image it runs is stale, the env file
+# changed, or this script changed (docker bakes --env-file values and -v/-p
+# flags at creation, so a rotated key or a new staging step needs a new
+# container); otherwise start or resume the existing one.
+spec_hash="$(shasum -a 256 "$env_file" "$self" | shasum -a 256 | awk '{print $1}')"
 want_image="$(docker image inspect -f '{{.Id}}' "$image")"
 have_image="$(docker inspect -f '{{.Image}}' "$container" 2>/dev/null || true)"
-have_env_hash="$(docker inspect -f '{{ index .Config.Labels "agentbox.env-sha256" }}' "$container" 2>/dev/null || true)"
-if [ -n "$have_image" ] && { [ "$have_image" != "$want_image" ] || [ "$have_env_hash" != "$env_hash" ]; }; then
-  echo "agentbox: image or env changed - recreating container"
+have_spec_hash="$(docker inspect -f '{{ index .Config.Labels "agentbox.spec-sha256" }}' "$container" 2>/dev/null || true)"
+if [ -n "$have_image" ] && { [ "$have_image" != "$want_image" ] || [ "$have_spec_hash" != "$spec_hash" ]; }; then
+  echo "agentbox: image, env, or script changed - recreating container"
   docker rm -f "$container" >/dev/null
   have_image=""
 fi
@@ -198,7 +264,7 @@ if [ -z "$have_image" ]; then
   # configured-but-broken auth inside.
   docker run -d --name "$container" \
     --user root --entrypoint /usr/local/sbin/agentbox-init \
-    --label "agentbox.env-sha256=$env_hash" \
+    --label "agentbox.spec-sha256=$spec_hash" \
     -p "127.0.0.1:$port:22" \
     --env-file "$env_file" \
     "${env_extra[@]}" \
@@ -209,18 +275,60 @@ if [ -z "$have_image" ]; then
     -v "$pi_config/themes:$box_home/.pi/agent/themes:ro" \
     -v "$pi_config/extensions:$box_home/.pi/agent/extensions:ro" \
     -v "$HOME/.treehouse:$box_home/.treehouse" \
+    -v "$gh_stage:$box_home/.config/gh:ro" \
     "$image"
 else
   docker start "$container" >/dev/null 2>&1 || true
 fi
 
 # Authorize the box's keypair for the agent user (container fs, not a mount).
+# Also fix ownership of the container-local ~/.config docker created for the
+# gh mount, so agent can use it for other tools later.
 docker exec -u root "$container" \
   install -d -m 700 -o agent -g agent "$box_home/.ssh"
+docker exec -u root "$container" \
+  install -d -m 755 -o agent -g agent "$box_home/.config"
 docker cp "$key_file.pub" "$container:/tmp/agentbox-authorized_keys"
 docker exec -u root "$container" sh -c \
   "install -m 600 -o agent -g agent /tmp/agentbox-authorized_keys '$box_home/.ssh/authorized_keys' \
    && rm /tmp/agentbox-authorized_keys"
+
+# Ship the host's ssh host aliases into the box: the ssh config, every
+# IdentityFile it names (plus .pubs), and known_hosts. Files are tarred on
+# the host (tar -L reads through home-manager's Nix-store symlinks) and
+# extracted into the box's own ~/.ssh - never bind-mounted - so the box can't
+# write back, and host key rotation just takes another up.
+ssh_files=(config)
+while IFS= read -r idf; do
+  idf="${idf//\"/}"
+  case "$idf" in
+    "~/"*) idf="$HOME/${idf#"~/"}" ;;
+  esac
+  case "$idf" in
+    "$ssh_src/"*) rel="${idf#"$ssh_src"/}" ;;
+    *) continue ;;
+  esac
+  [ -f "$ssh_src/$rel" ] || continue
+  ssh_files+=("$rel")
+  [ -f "$ssh_src/$rel.pub" ] && ssh_files+=("$rel.pub")
+done < <(awk 'tolower($1)=="identityfile" && $2 != "" {print $2}' "$ssh_src/config" | sort -u)
+for kh in known_hosts known_hosts.old; do
+  [ -f "$ssh_src/$kh" ] && ssh_files+=("$kh")
+done
+# Drop previously staged ssh files (a key deleted on the host shouldn't linger
+# in the box); authorized_keys is the box's own and survives.
+docker exec -u root "$container" sh -c \
+  'cd /Users/matt/.ssh && for f in *; do [ "$f" = authorized_keys ] || rm -f "$f"; done'
+COPYFILE_DISABLE=1 tar -cL --no-xattrs --no-mac-metadata -C "$ssh_src" -f - "${ssh_files[@]}" | docker cp - "$container:$box_home/.ssh/"
+docker exec -u root "$container" sh -c '
+  cd /Users/matt/.ssh
+  for f in *; do
+    [ -f "$f" ] || continue
+    chown agent:agent "$f"
+    chmod 600 "$f"
+    case "$f" in *.pub|known_hosts|known_hosts.old|config) chmod 644 "$f";; esac
+  done
+'
 
 # Verify ssh is reachable (proves sshd up AND auth working) before declaring up.
 attempt=0
@@ -240,8 +348,12 @@ agentbox is up.
   agentbox stop    # stop; everything lives in host dirs - nothing is lost
   agentbox status  # container + ssh reachability
 
-Inside: pi, herdr, no-mistakes, treehouse, tmux, gh (auth via GH_TOKEN).
+Inside: pi, herdr, no-mistakes, treehouse, tmux, gh.
 Mounted: ~/repos, ~/.pi/agent, ~/.treehouse - all rw, at the same absolute
 paths as the host, and ~/firstmate resolves like on the host.
-Never mounted: ~/.ssh and the rest of HOME.
+GitHub auth: your gh accounts (mounted from ~/.config/agentbox/gh, staged
+from host gh + login keychain at this up) and your ssh host aliases (config +
+identity keys copied into the box's ~/.ssh). GH_TOKEN stays an optional
+override; no PAT required.
+Never mounted: host ~/.ssh itself and the rest of HOME.
 EOF

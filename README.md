@@ -203,20 +203,20 @@ agentbox stop     # stop; all state lives in the mounted host dirs - nothing is 
 agentbox status   # container state + ssh reachability
 ```
 
-One-time setup, two files under `~/.config/agentbox/` (gitignored, never committed - the `up` subcommand prints this same recipe when they're missing):
+One-time setup: an env file under `~/.config/agentbox/` (gitignored, never committed - the `up` subcommand prints this same recipe when it's missing):
 
 ```sh
 mkdir -p ~/.config/agentbox && chmod 700 ~/.config/agentbox
 cat > ~/.config/agentbox/env <<'EOF'
 COHERE_API_KEY=<your Cohere key>
-GH_TOKEN=<a fine-grained PAT>
+# GH_TOKEN=<optional>  - overrides the staged gh accounts inside when set
 EOF
 chmod 600 ~/.config/agentbox/env
 ```
 
-For `GH_TOKEN`, create a fine-grained personal access token (GitHub -> Settings -> Developer settings -> Personal access tokens -> Fine-grained tokens) limited to only the repositories the box needs (`kunchenguid/firstmate` and any repos you work on inside), Contents read-write. `gh` inside the box authenticates off this token alone; no ssh keys ever enter the box. `agentbox up` also generates a dedicated ed25519 keypair at `~/.config/agentbox/id_agentbox` purely for host-to-box ssh, and editing the env file just takes one `agentbox up` to re-inject (the container is recreated when the file changes).
+Only `COHERE_API_KEY` is required. GitHub access inside the box is the same multi-account setup as the host: at every `up`, the script re-stages each `gh` account with its token from the host's login keychain into the private `~/.config/agentbox/gh/` directory (mode 700, files 600) and mounts it read-only over the box's `~/.config/gh`, and it copies the host's ssh config, every `IdentityFile` the config names (plus their `.pub`s), and `known_hosts` into the box's own `~/.ssh` - so all three `gh` accounts are ready inside and the `github-cohere` / `github-personal` / `github-reliant` host aliases work for git exactly as on the host. `GH_TOKEN` remains an optional pass-through override for when a single token is preferable; because at least one repo here refuses PATs outright, a PAT is never required. Nothing in the image bakes credentials: every secret enters at container-create or `up` time only. `agentbox up` also generates a dedicated ed25519 keypair at `~/.config/agentbox/id_agentbox` purely for host-to-box ssh, and editing the env file just takes one `agentbox up` to re-inject (the container is recreated when the file or the script changes).
 
-The mount boundary is exactly three things - `~/repos`, `~/.pi/agent`, and `~/.treehouse`, all read-write at the same absolute paths as the host. The box's `agent` user has `/Users/matt` as HOME and the image symlinks `/Users/matt/firstmate` -> `/Users/matt/repos/public/firstmate`, exactly as on the host, so fleet records, pi sessions, and treehouse-pooled worktrees all resolve with identical spellings inside and out: the fleet runs inside the box, but shares the host's fleet home completely. Host `~/.ssh` and the rest of HOME stay out - `~/.ssh` is never mounted, which is why gh-in-box works off `GH_TOKEN` rather than any key.
+The mount boundary is `~/repos`, `~/.pi/agent`, and `~/.treehouse`, all read-write at the same absolute paths as the host, plus the staged gh state mounted read-only at the box's `~/.config/gh`. The box's `agent` user has `/Users/matt` as HOME and the image symlinks `/Users/matt/firstmate` -> `/Users/matt/repos/public/firstmate`, exactly as on the host, so fleet records, pi sessions, and treehouse-pooled worktrees all resolve with identical spellings inside and out: the fleet runs inside the box, but shares the host's fleet home completely. The rest of HOME stays out: the host `~/.ssh` files themselves are never mounted - the box gets fresh copies at `up` (they're home-manager symlinks into the Nix store, which a bind mount couldn't even resolve in the VM), so rotating a host key just takes one `agentbox up`.
 
 ## Notes
 
