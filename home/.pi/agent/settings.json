@@ -5,6 +5,9 @@
   "terminal": {
     "showImages": false
   },
+  "defaultProvider": "oss-model-vault-v2",
+  "defaultModel": "kimi-k3-gb200",
+  "defaultThinkingLevel": "high",
   "hideThinkingBlock": true,
   "quietStartup": true,
   "theme": "rose-pine-moon",

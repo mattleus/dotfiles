@@ -3,7 +3,7 @@
   "share": "disabled",
   "autoshare": false,
   "autoupdate": true,
-  "model": "cohere-oss/deepseek-v4-flash-0731",
+  "model": "oss-model-vault-v2/kimi-k3-gb200",
   "provider": {
     "cohere-oss": {
       "npm": "@ai-sdk/openai-compatible",
@@ -104,6 +104,25 @@
           "limit": {
             "context": 900000,
             "output": 100000
+          }
+        },
+        "glm-5-3-flash": {
+          "name": "GLM-5.3 Flash",
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          },
+          "cost": {
+            "input": 0.15,
+            "cache_read": 0.03,
+            "output": 0.5
+          },
+          "interleaved": {
+            "field": "reasoning_content"
           }
         }
       }
