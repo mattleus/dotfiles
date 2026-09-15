@@ -230,6 +230,13 @@ in
   home.file.".pi/agent/settings.json".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.pi/agent/settings.json";
 
+  # pi-box: run Pi unrestricted inside a container on colima's docker VM (see
+  # docker/agent-box/ and the README). Repo-authored script, linked into
+  # ~/.local/bin (already on PATH via home.sessionPath) like any other
+  # authored file - editing it here is live, no rebuild needed.
+  home.file.".local/bin/pi-box".source =
+    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.local/bin/pi-box";
+
   home.file.".claude/CLAUDE.md".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/AGENTS.md";
   home.file.".codex/AGENTS.md".source =

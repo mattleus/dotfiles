@@ -179,6 +179,19 @@ Both packages execute with your full user permissions and must be trusted like a
 
 Home Manager deliberately does not manage `~/.pi/agent` itself, or Pi authentication, sessions, trust decisions, caches, npm/git package trees, or any other runtime state. The model overrides contain no credentials or endpoint settings, do not choose a default model, and only take effect after you authenticate Pi yourself. This remains an additive post-video layer: it does not install Pi, a launcher, or package source code into this repository.
 
+## pi-box: unrestricted Pi in a container
+
+`pi-box` runs Pi with no permission prompts inside a disposable container on colima's docker VM, so a full-power agent session can't touch the host.
+Only the current project directory and `~/.pi/agent` (models, settings, sessions, auth) enter the container, which runs as a non-root user and is deleted when Pi exits.
+
+```sh
+pi-box        # from any project directory under ~/
+```
+
+The image (`docker/agent-box/Dockerfile`: Node LTS, git, gh, ripgrep, Pi) builds on first run and rebuilds automatically whenever that file changes.
+If colima isn't running, `pi-box` prints `need: colima start` and exits; it never starts or reconfigures the VM itself.
+Commits made inside the container reuse the git identity your host would use for that directory.
+
 ## Notes
 
 The first time you launch `nvim`, it bootstraps [lazy.nvim](https://github.com/folke/lazy.nvim) by cloning plugins from GitHub.
