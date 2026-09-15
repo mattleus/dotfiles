@@ -27,6 +27,12 @@ in
     lua-language-server           # lua (this very config)
     google-cloud-sdk  # gcloud CLI
     nodejs    # general JS/TS dev use
+    # containers: docker is CLI-only here; colima runs the actual daemon in a
+    # lightweight VM (macOS Virtualization.framework). After a first install,
+    # the VM needs one manual kick: `colima start` (downloads a VM image).
+    colima
+    docker
+    docker-compose
     # the font everything renders in
     nerd-fonts.hack
     pkgs.rectangle
@@ -67,6 +73,12 @@ in
       # Machine-local environment variables (API keys, tokens, etc) - never committed,
       # see home/env.local in .gitignore. Add new ones there as future needs come up.
       [ -f "${dotfiles}/home/env.local" ] && source "${dotfiles}/home/env.local"
+
+      # colima runs the docker daemon in a lightweight VM; make sure it's up when a
+      # shell starts. Skips entirely when already running. `&!` backgrounds and disowns
+      # so a cold start (booting the VM, or the one-time image download) never blocks
+      # a new prompt; a `docker` command that races the boot just needs a retry.
+      ( command -v colima &>/dev/null && ! colima status &>/dev/null && colima start &>/dev/null ) &!
     '';
     shellAliases = {
       ".." = "cd ..";
@@ -187,6 +199,11 @@ in
       cmd_duration.format = "[$duration]($style) ";
     };
   };
+
+  # Expose compose as the modern `docker compose` subcommand (plugin lookup path),
+  # not just the standalone `docker-compose` binary that `home.packages` puts on PATH.
+  home.file.".docker/cli-plugins/docker-compose".source =
+    "${pkgs.docker-compose}/bin/docker-compose";
 
   # Edit-in-place: the real file stays in my repo, ~/.config just points at it.
   home.file.".config/wezterm".source =
