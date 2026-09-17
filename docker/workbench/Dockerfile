@@ -16,9 +16,11 @@ FROM node:24-bookworm-slim
 
 # gh has no Debian package; GitHub publishes its own apt repo, keyed by its
 # archive keyring. git-lfs: host repos carry LFS pointers; without it in-tree
-# checkouts/clones referencing LFS objects break.
+# checkouts/clones referencing LFS content break. fd: pi shells out to `fd` for
+# its file pickers - Debian ships the binary as `fdfind`, so symlink it.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends git git-lfs ripgrep curl ca-certificates \
+ && apt-get install -y --no-install-recommends git git-lfs ripgrep fd-find curl ca-certificates \
+ && ln -sf /usr/bin/fdfind /usr/local/bin/fd \
  && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
       -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
  && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
@@ -151,15 +153,20 @@ RUN printf '%s\n' \
 # pi npm/git packages declared in the baked settings.json, pre-installed at
 # build (deterministic; keeps first boot offline-tolerant; PI_OFFLINE=1 is set
 # only below, after this step). They land in /Users/matt/.pi/agent, which a
-# fresh workbench-pi-agent named volume is seeded from at container create.
+# fresh workbench-pi-agent named volume is seeded from at container create -
+# so the baked settings/models/themes and package trees ride the docker volume
+# seed and need no first-boot network.
 USER agent
 ENV HOME=/Users/matt
 RUN mkdir -p "$HOME/.pi/agent" \
- && cp /opt/workbench/pi-agent/settings.json /opt/workbench/pi-agent/models.json "$HOME/.pi/agent/" \
+ && cp -R /opt/workbench/pi-agent/. "$HOME/.pi/agent/" \
  && set -e; \
     for pkg in $(jq -r '.packages[]' "$HOME/.pi/agent/settings.json"); do \
       pi install "$pkg" </dev/null; \
     done
+# tmux: pi's TUI wants extended-keys (modified Enter etc). Container-wide
+# default; users can still override with their own ~/.tmux.conf.
+RUN printf '%s\n' 'set -g extended-keys on' > /Users/matt/.tmux.conf
 # mise activates per interactive shell; the shims dir joins PATH via the
 # init-written .zshenv so pinned per-repo runtimes also resolve non-interactively.
 # Idiomatic version files (.nvmrc, .node-version) are off by default in recent mise;

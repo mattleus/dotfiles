@@ -66,7 +66,7 @@ case "$oc_parse" in
 esac
 
 # --- Dockerfile pins stay sha256-gated ------------------------------------------
-for pin in "herdr.*v0.8.0" "treehouse-v2.1.1" "no-mistakes-v1.72.0" "mise-v2026.9.10" "pi-coding-agent@0.85.1" "opencode-ai@1.18.31" "tasks-axi@0.2.5" "gh-axi@0.1.30" "chrome-devtools-axi@0.1.29" "quota-axi@0.1.43" "lavish-axi@0.1.50" "node:24-bookworm-slim"; do
+for pin in "herdr.*v0.8.0" "treehouse-v2.1.1" "no-mistakes-v1.72.0" "mise-v2026.9.10" "pi-coding-agent@0.85.1" "opencode-ai@1.18.31" "tasks-axi@0.2.5" "gh-axi@0.1.30" "chrome-devtools-axi@0.1.29" "quota-axi@0.1.43" "lavish-axi@0.1.50" "node:24-bookworm-slim" "fd-find" "extended-keys"; do
   grep -q "$pin" "$BENCH/Dockerfile" \
     && pass "Dockerfile pins $pin" \
     || fail "Dockerfile missing pin $pin"
@@ -118,11 +118,23 @@ done
 grep -q '/docker/workbench/config/pi-agent/' "$ROOT/.gitignore" \
   && pass "staged pi config build context is gitignored" \
   || fail "staged pi config build context not gitignored"
-if grep -q 'find-generic-password' "$WRAPPER"; then
-  pass "wrapper reads secrets from the keychain"
+if grep -q 'find-generic-password\|env.local' "$WRAPPER"; then
+  pass "wrapper reads secrets from the keychain or env.local"
 else
-  fail "wrapper does not read the keychain"
+  fail "wrapper reads neither keychain nor env.local"
 fi
+grep -q 'env.local' "$WRAPPER" \
+  && pass "wrapper reconciles home/env.local into the keychain at up" \
+  || fail "wrapper ignores home/env.local"
+grep -q 'themes' "$WRAPPER" \
+  && pass "wrapper stages pi themes into the build context" \
+  || fail "wrapper does not stage pi themes"
+grep -q 'pi-agent/themes' "$BENCH/workbench-init" \
+  && pass "init seeds pi themes when absent" \
+  || fail "init does not seed pi themes"
+[ -f "$ROOT/home/.pi/agent/themes/rose-pine-moon.json" ] \
+  && pass "authored rose-pine-moon theme present to stage" \
+  || fail "rose-pine-moon theme source missing"
 
 # --- pre-push tripwire ------------------------------------------------------------
 [ -x "$BENCH/git-template/hooks/pre-push" ] \
