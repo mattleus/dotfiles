@@ -60,4 +60,29 @@ sudo "$NIX_BIN" run github:nix-darwin/nix-darwin/nix-darwin-26.05#darwin-rebuild
 # If this still fails with "nix: command not found", open a new terminal
 # (Determinate adds nix to new shells' PATH) and re-run ./bootstrap.sh.
 
+echo "==> Step 5: colima VM sizing (workbench expects 8 vCPU / 20 GiB / 100 GiB)"
+# colima only applies --cpu/--memory/--disk when CREATING the VM; sizing an
+# existing VM means colima stop + start with the flags (which pauses other
+# containers on it). On a fresh machine the VM doesn't exist yet, so create it
+# at the right shape directly; the zsh hook would otherwise auto-start it with
+# defaults on the first new shell.
+if ! colima status >/dev/null 2>&1; then
+  colima start --cpu 8 --memory 20 --disk 100 --vm-type vz --mount-type virtiofs --mount-inotify
+else
+  shape="$(colima list | awk '$1=="default" {print $4, $5}')"
+  if [ "$shape" != "8 20GiB" ]; then
+    echo "    colima VM is running at a different shape ($shape). When convenient"
+    echo "    (it pauses any other containers on the VM):"
+    echo "      colima stop && colima start --cpu 8 --memory 20 --disk 100 --vm-type vz --mount-type virtiofs --mount-inotify"
+  fi
+fi
+# Machine-local items bootstrap deliberately does NOT set up (check-and-prompt
+# instead): the COHERE_API_KEY and sandbox-gh-token keychain entries (the
+# workbench wrapper prompts/reads them), the fine-grained PAT on GitHub,
+# branch protection on org repos without admin, firstmate per-clone trust.
+echo "    Reminder: the workbench's first session prompts for COHERE_API_KEY"
+echo "    (paste from Bitwarden; stored as a keychain generic password). If you"
+echo "    also want the dedicated fine-grained PAT for git/gh in the sandbox:"
+echo "    security add-generic-password -s sandbox-gh-token -a \"\$USER\" -w \"<pat>\""
+
 echo "==> Done. Use ./rebuild.sh for future changes."

@@ -1,0 +1,36 @@
+#!/bin/sh
+# workbench pre-push tripwire (baked via init.templateDir).
+#
+# Honestly labeled a SPEED BUMP, not a boundary: `git push --no-verify`
+# bypasses it and the file lives in agent-writable config space. The
+# enforceable layer is GitHub branch protection denying force-push and
+# deletion on protected branches - that enforcement point is outside the
+# container.
+#
+# What it catches: the reflex mistake - a force-push or branch deletion aimed
+# at main/master - by inspecting the refs being updated (effect-based, not
+# flag-string-matched).
+#
+# stdin: one line per pushed ref: <local ref> <local sha> <remote ref> <remote sha>
+set -u
+
+zero=0000000000000000000000000000000000000000
+refuse() {
+  echo "workbench pre-push tripwire: $1" >&2
+  echo "  (deliberate? rerun with: git push --no-verify)" >&2
+  exit 1
+}
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/heads/main|refs/heads/master) ;;
+    *) continue ;;
+  esac
+  if [ "$local_sha" = "$zero" ]; then
+    refuse "refusing to delete $remote_ref on $2"
+  fi
+  if [ "$remote_sha" != "$zero" ] && ! git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
+    refuse "refusing non-fast-forward update of $remote_ref on $2 (force-push)"
+  fi
+done
+exit 0

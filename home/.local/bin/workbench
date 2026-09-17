@@ -1,0 +1,451 @@
+#!/usr/bin/env bash
+# workbench: the disposable agent workstation container on colima's docker VM
+# (sandbox spec v1). One container named `workbench` runs sshd as its init;
+# pi, opencode, and the whole firstmate fleet run inside it. The container plus
+# its mount topology is the ONLY load-bearing boundary - everything it can
+# touch is listed below; `docker rm` is safe anytime.
+#
+#   workbench up                    build image if stale, start container, verify ssh,
+#                                   scan ~/work for dirty trees, print usage
+#   workbench ssh [args]            ssh in as agent (secrets ride ssh SetEnv; tmux inside
+#                                   gives session persistence - start the fleet here)
+#   workbench pi <repo> [args]      inject COHERE_API_KEY (+ GH_TOKEN) per-exec, open pi
+#                                   in a tmux session cd'd to the bind-mounted repo
+#   workbench pi-review <repo>      same, but pi runs with --tools read,grep,find,ls -
+#                                   no write path (review mode, enforceable at the tool surface)
+#   workbench opencode <repo> [..]  same, for opencode
+#   workbench stop                  stop the container (volumes + host mounts survive)
+#   workbench status                container/ssh reachability, credential readiness,
+#                                   container-env cleanliness
+#
+# Boundary: everything here mounts read-write at the SAME absolute path as the host.
+#   Host bind mounts:               Named volumes (disposable):
+#     ~/work                          .pi/agent         (pi sessions, packages, seeded config)
+#     ~/repos/github/cohere-ai        .local/share/opencode (opencode session data)
+#     ~/repos/github/reliant-ai       .cache/{npm,pnpm} (12x faster than the bind mount)
+#     ~/repos/public/firstmate        .local/share/mise (per-repo runtimes survive recreation)
+#       (FM_HOME - the existing fleet home; ~/firstmate resolves inside via the image symlink)
+# Never mounted or injected: ~/.secrets, ~/.ssh, ~/.config/gh, ~/.docker, ~/.colima,
+# cloud credential stores, browser profiles, any auth.json. docker.sock never mounted.
+#
+# Secrets: COHERE_API_KEY and the optional sandbox-gh-token (dedicated fine-grained
+# PAT; falls back to `gh auth token`) live as macOS keychain generic passwords.
+# The wrapper reads them per session and injects via `docker exec -e` / ssh SetEnv,
+# so the container-wide environment stays secret-free (docker inspect shows
+# nothing) and the values die with the session's process tree. Always enter via
+# this wrapper: a tmux server started another way won't carry them (if a key was
+# rotated and an old tmux server persists, kill it: tmux kill-server inside).
+# Missing COHERE_API_KEY prompts (paste once from Bitwarden; stored for reuse).
+set -euo pipefail
+
+# Resolve this script's real path (it normally runs as the ~/.local/bin/workbench
+# symlink home-manager creates), so the repo's Dockerfile and configs are found
+# however we're invoked. cd -P collapses symlinked path components like
+# ~/.dotfiles, so repo_root ends up a physical path under /Users - the tree
+# colima's VM shares with containers.
+self="$0"
+case "$self" in /*) ;; *) self="$(command -v "$self")";; esac
+while [ -L "$self" ]; do
+  target="$(readlink "$self")"
+  case "$target" in /*) self="$target";; *) self="$(cd -P "$(dirname "$self")" && pwd)/$target";; esac
+done
+bin_dir="$(cd -P "$(dirname "$self")" && pwd)"
+repo_root="$(cd -P "$bin_dir/../../.." && pwd)"
+bench_dir="$repo_root/docker/workbench"
+dockerfile="$bench_dir/Dockerfile"
+init_script="$bench_dir/workbench-init"
+
+image=workbench:latest
+container=workbench
+port=2222
+box_home=/Users/matt
+config_dir="$HOME/.config/workbench"
+key_file="$config_dir/id_workbench"
+me="$(id -un)"
+
+usage() {
+  sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//' >&2
+  exit 1
+}
+
+die() { echo "workbench: $*" >&2; exit 1; }
+
+# The docker daemon lives in colima's VM; this script checks but never starts,
+# stops, or reconfigures it.
+colima_running() { colima status >/dev/null 2>&1; }
+
+container_running() {
+  [ "$(docker inspect -f '{{.State.Running}}' "$container" 2>/dev/null || true)" = "true" ]
+}
+need_container_running() {
+  container_running || die "container not running - start it with: workbench up"
+}
+
+# --- credentials (keychain) ---------------------------------------------------
+
+cohere_key() {
+  security find-generic-password -s COHERE_API_KEY -a "$me" -w 2>/dev/null
+}
+
+have_cohere_key() { cohere_key >/dev/null; }
+
+sandbox_gh_pat() {
+  security find-generic-password -s sandbox-gh-token -a "$me" -w 2>/dev/null
+}
+
+# GH token for a session: dedicated fine-grained PAT from the keychain when it
+# exists (preferred), else the token of the gh account matching the tree the
+# session runs in (same account-to-directory mapping as the host's gh autoswitch).
+gh_token_for() {
+  local phys="${1:-}" tok user=""
+  if tok="$(sandbox_gh_pat)" && [ -n "$tok" ]; then
+    printf '%s' "$tok"
+    return 0
+  fi
+  case "$phys" in
+    */cohere-ai/*) user=mattleus-cohere ;;
+    */reliant-ai/*) user=matt-reliant ;;
+  esac
+  if [ -n "$user" ]; then
+    gh auth token --user "$user" 2>/dev/null || true
+  else
+    gh auth token 2>/dev/null || true
+  fi
+}
+
+# First-use bridge: the key lives in Bitwarden; prompt once (paste from there),
+# store as the keychain generic password every later session reads. Non-TTY
+# invocations don't hang: they fail with the manual one-liner.
+ensure_cohere_key() {
+  if have_cohere_key; then return 0; fi
+  if [ -t 0 ]; then
+    echo "workbench: no keychain entry COHERE_API_KEY@${me:-} yet." >&2
+    echo "Grab it from Bitwarden and paste below (hidden); it is stored as a" >&2
+    echo "macOS keychain generic password (-s COHERE_API_KEY -a $me) and every" >&2
+    echo "later session reads it from there - per-session injection only, never" >&2
+    echo "written to any file or the container env." >&2
+    printf 'COHERE_API_KEY: ' >&2
+    local value
+    IFS= read -rs value
+    printf '\n' >&2
+    if [ -z "$value" ]; then
+      echo "workbench: empty value, nothing stored" >&2
+      return 1
+    fi
+    security add-generic-password -s COHERE_API_KEY -a "$me" -w "$value" -U
+    have_cohere_key
+  else
+    die "keychain entry COHERE_API_KEY missing - store it once (paste from Bitwarden):
+  security add-generic-password -s COHERE_API_KEY -a \"$me\" -w \"<key>\""
+  fi
+}
+
+# --- session environment plumbing ----------------------------------------------
+
+# Export COHERE_API_KEY (+ GH_TOKEN when resolvable) into this script's own
+# environment (host-side only) so that `docker exec -e VAR` / ssh SendEnv
+# forward them by NAME - values never appear on any command line.
+load_session_secrets() {
+  ensure_cohere_key || return 1
+  COHERE_API_KEY="$(cohere_key)"
+  export COHERE_API_KEY
+  local gt
+  gt="$(gh_token_for "${1:-}")"
+  if [ -n "$gt" ]; then
+    GH_TOKEN="$gt"
+    export GH_TOKEN
+  else
+    unset GH_TOKEN 2>/dev/null || true
+  fi
+}
+
+# --- repos and dirty-tree warnings ----------------------------------------------
+
+# Resolve a repo argument to a physical path inside the mounted set. Bare names
+# are searched under ~/work and its one-level children (the two org symlink
+# targets and _landing); absolute paths are taken as-is.
+resolve_repo() {
+  local arg="${1:-}" cand="" base
+  [ -n "$arg" ] || die "usage: workbench <pi|opencode> <repo>"
+  case "$arg" in
+    /*)
+      [ -d "$arg" ] && cand="$arg"
+      ;;
+    *)
+      for base in "$HOME/work" "$HOME/work/cohere-ai" "$HOME/work/reliant-ai" "$HOME/work/_landing"; do
+        if [ -d "$base/$arg" ]; then cand="$base/$arg"; break; fi
+      done
+      ;;
+  esac
+  if [ -z "$cand" ]; then
+    die "no such repo: $arg (looked under ~/work and one level into its org dirs; or pass an absolute path)"
+  fi
+  cand="$(cd -P "$cand" && pwd)"
+  case "$cand" in
+    "$HOME/work"/*|"$HOME/repos/github/cohere-ai"/*|"$HOME/repos/github/reliant-ai"/*|"$HOME/repos/public/firstmate"|"$HOME/repos/public/firstmate"/*)
+      ;;
+    *)
+      die "$cand is outside the mounted set.
+Only ~/work, ~/repos/github/{cohere-ai,reliant-ai}, and FM_HOME (~/repos/public/firstmate) enter the sandbox."
+      ;;
+  esac
+  printf '%s' "$cand"
+}
+
+dirty_repos_under_work() {
+  local roots r
+  while IFS= read -r r; do
+    roots+=("$r")
+  done < <(find -L "$HOME/work" -maxdepth 3 -name .git -prune 2>/dev/null | sed 's|/\.git$||' | sort -u)
+  for r in ${roots[@]+"${roots[@]}"}; do
+    if [ -n "$(git -C "$r" status --porcelain 2>/dev/null | head -1)" ]; then
+      printf '%s\n' "$r"
+    fi
+  done
+}
+
+warn_if_dirty() {
+  local repo="$1"
+  if [ -n "$(git -C "$repo" status --porcelain 2>/dev/null | head -1)" ]; then
+    echo "workbench: WARNING - $repo has uncommitted changes or untracked files." >&2
+    echo "  Convention: commit or stash before an agent works on it; untracked-file" >&2
+    echo "  loss is unrecoverable in the sandbox (accepted risk, no host backups)." >&2
+  fi
+}
+
+# --- container + ssh ------------------------------------------------------------
+
+# The box proves itself over a dedicated keypair; known_hosts is /dev/null and
+# checking pinned off because the container's host keys are regenerated
+# whenever it is recreated, which is exactly when a stored entry would be
+# wrong. The port is localhost-only.
+ssh_args=(-p "$port" -i "$key_file"
+  -o IdentitiesOnly=yes
+  -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR)
+
+cmd="${1:-}"; [ $# -gt 0 ] && shift
+case "$cmd" in
+  up|ssh|pi|pi-review|opencode|stop|status) ;;
+  *) usage ;;
+esac
+
+colima_running || die "need: colima start"
+
+if [ "$cmd" = "stop" ]; then
+  docker stop "$container" >/dev/null
+  echo "workbench: stopped (host mounts and named volumes keep everything durable; resume with: workbench up)"
+  exit 0
+fi
+
+if [ "$cmd" = "status" ]; then
+  state="$(docker inspect -f '{{.State.Status}} (image {{.Config.Image}})' "$container" 2>/dev/null || echo "absent")"
+  echo "container: $state"
+  if container_running \
+     && ssh "${ssh_args[@]}" -o BatchMode=yes -o ConnectTimeout=3 agent@127.0.0.1 true 2>/dev/null; then
+    echo "ssh:       reachable (agent@127.0.0.1:$port)"
+  else
+    echo "ssh:       NOT reachable"
+  fi
+  # Secret hygiene assertion (spec checklist): the container-wide environment
+  # must be secret-free; secrets live only in per-session process trees.
+  cenv="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$container" 2>/dev/null || true)"
+  if printf '%s' "$cenv" | grep -E -q 'COHERE_API_KEY|GH_TOKEN'; then
+    echo "env:       VIOLATION - container env carries a secret (recreate: workbench up)"
+    exit 1
+  else
+    echo "env:       clean (no secrets in container env)"
+  fi
+  if have_cohere_key; then
+    echo "keychain:  COHERE_API_KEY present"
+  else
+    echo "keychain:  COHERE_API_KEY MISSING (first session prompts; or:"
+    echo "  security add-generic-password -s COHERE_API_KEY -a $me -w \"<key>\")"
+  fi
+  if sandbox_gh_pat >/dev/null; then
+    echo "keychain:  sandbox-gh-token present (dedicated PAT)"
+  else
+    echo "keychain:  sandbox-gh-token absent (git falls back to host gh account token)"
+  fi
+  exit 0
+fi
+
+# --- up ----------------------------------------------------------------------
+
+# up / ssh / pi / opencode need the box to exist.
+if [ "$cmd" = "up" ]; then
+  # Boundary mounts are real host dirs; create them host-side when missing so
+  # docker never auto-creates them root-owned on the share.
+  mkdir -p "$HOME/work" "$HOME/repos/github/cohere-ai" "$HOME/repos/github/reliant-ai"
+  [ -d "$HOME/repos/public/firstmate" ] \
+    || die "FM_HOME missing: $HOME/repos/public/firstmate (clone firstmate there first; home.nix's cloneFirstmate does it)"
+
+  if [ ! -f "$key_file" ]; then
+    mkdir -p "$config_dir" && chmod 700 "$config_dir"
+    ssh-keygen -q -t ed25519 -N '' -C workbench -f "$key_file"
+  fi
+
+  # Stage the authored pi configs (single source of truth under home/) into the
+  # build context; the Dockerfile COPYs them and never reaches outside it.
+  # config/pi-agent/ is gitignored - the staged files are derived artifacts.
+  mkdir -p "$bench_dir/config/pi-agent"
+  cp "$repo_root/home/.pi/agent/settings.json" "$bench_dir/config/pi-agent/settings.json"
+  cp "$repo_root/home/.pi/agent/models.json" "$bench_dir/config/pi-agent/models.json"
+
+  # Rebuild only when the build inputs changed: their combined sha256 is stored
+  # on the image as a label at build time, compared against the files on disk
+  # on each run.
+  want_hash="$(
+    shasum -a 256 "$dockerfile" "$init_script" \
+      "$bench_dir/config/opencode/opencode.jsonc" \
+      "$bench_dir/config/pi-agent/settings.json" \
+      "$bench_dir/config/pi-agent/models.json" \
+      "$bench_dir/git-template/hooks/pre-push" \
+      | shasum -a 256 | awk '{print $1}'
+  )"
+  have_hash="$(docker image inspect "$image" \
+    --format '{{ index .Config.Labels "workbench.inputs-sha256" }}' 2>/dev/null || true)"
+  if [ "$want_hash" != "$have_hash" ]; then
+    docker build -t "$image" \
+      --label "workbench.inputs-sha256=$want_hash" \
+      -f "$dockerfile" "$bench_dir"
+  fi
+
+  # Recreate the container when the image it runs is stale or this wrapper
+  # changed (docker bakes mounts/ports at creation); otherwise start or resume.
+  spec_hash="$(shasum -a 256 "$self" | awk '{print $1}')"
+  want_image="$(docker image inspect -f '{{.Id}}' "$image")"
+  have_image="$(docker inspect -f '{{.Image}}' "$container" 2>/dev/null || true)"
+  have_spec_hash="$(docker inspect -f '{{ index .Config.Labels "workbench.wrapper-sha256" }}' "$container" 2>/dev/null || true)"
+  if [ -n "$have_image" ] && { [ "$have_image" != "$want_image" ] || [ "$have_spec_hash" != "$spec_hash" ]; }; then
+    echo "workbench: image or wrapper changed - recreating container (rootfs is disposable)"
+    docker rm -f "$container" >/dev/null
+    have_image=""
+  fi
+
+  if [ -z "$have_image" ]; then
+    # init is the image ENTRYPOINT and runs as root (sshd needs it for
+    # privilege separation); sshd then drops to user `agent` for each login.
+    # No secrets are passed here - container env stays clean (docker inspect).
+    docker run -d --name "$container" \
+      --label "workbench.wrapper-sha256=$spec_hash" \
+      -p "127.0.0.1:$port:22" \
+      -v "$HOME/work:$HOME/work" \
+      -v "$HOME/repos/github/cohere-ai:$HOME/repos/github/cohere-ai" \
+      -v "$HOME/repos/github/reliant-ai:$HOME/repos/github/reliant-ai" \
+      -v "$HOME/repos/public/firstmate:$HOME/repos/public/firstmate" \
+      -v workbench-pi-agent:"$box_home/.pi/agent" \
+      -v workbench-opencode-data:"$box_home/.local/share/opencode" \
+      -v workbench-npm-cache:"$box_home/.cache/npm" \
+      -v workbench-pnpm-cache:"$box_home/.cache/pnpm" \
+      -v workbench-mise:"$box_home/.local/share/mise" \
+      "$image"
+  else
+    docker start "$container" >/dev/null 2>&1 || true
+  fi
+
+  # Authorize the box's keypair for the agent user (container fs, not a mount).
+  docker exec -u root "$container" \
+    install -d -m 700 -o agent -g agent "$box_home/.ssh"
+  docker cp "$key_file.pub" "$container:/tmp/workbench-authorized_keys"
+  docker exec -u root "$container" sh -c \
+    "install -m 600 -o agent -g agent /tmp/workbench-authorized_keys '$box_home/.ssh/authorized_keys' \
+     && rm /tmp/workbench-authorized_keys"
+
+  # Git identity: reuse the host's global one (host per-directory email
+  # overrides don't exist in the sandbox; direct sessions push over HTTPS with
+  # the session GH_TOKEN regardless).
+  git_name="$(git config --global --get user.name 2>/dev/null || true)"
+  git_email="$(git config --global --get user.email 2>/dev/null || true)"
+  if [ -n "$git_name" ]; then
+    docker exec -u agent "$container" git config --global user.name "$git_name" || true
+  fi
+  if [ -n "$git_email" ]; then
+    docker exec -u agent "$container" git config --global user.email "$git_email" || true
+  fi
+
+  # Verify ssh is reachable (proves sshd up AND auth working) before declaring up.
+  attempt=0
+  until ssh "${ssh_args[@]}" -o BatchMode=yes -o ConnectTimeout=2 agent@127.0.0.1 true 2>/dev/null; do
+    attempt=$((attempt + 1))
+    if [ "$attempt" -ge 30 ]; then
+      die "ssh never came up; check: docker logs $container"
+    fi
+    sleep 1
+  done
+
+  # Credential readiness (a session will prompt if this is missing).
+  if ! have_cohere_key; then
+    echo "workbench: note - keychain entry COHERE_API_KEY is missing; the first" >&2
+    echo "  ssh/pi/opencode session will prompt for it (paste from Bitwarden)." >&2
+  fi
+
+  # Dirty-tree scan of ~/work (commit-before-agent convention; untracked-file
+  # loss is the sandbox's accepted-risk class).
+  dirty="$(dirty_repos_under_work)"
+  if [ -n "$dirty" ]; then
+    n="$(printf '%s\n' "$dirty" | wc -l | tr -d ' ')"
+    echo "workbench: $n of your ~/work repos have uncommitted changes or untracked files:" >&2
+    printf '%s\n' "$dirty" | head -15 | sed 's/^/  /' >&2
+    if [ "$n" -gt 15 ]; then
+      echo "  ... and $((n - 15)) more" >&2
+    fi
+    echo "  convention: commit or stash before agent sessions - untracked-file loss is unrecoverable." >&2
+  fi
+
+  cat <<EOF
+workbench is up.
+
+  workbench pi <repo>        pi TUI in a tmux session, cd'd to the mounted repo
+  workbench pi-review <repo> pi with read-only tool surface (no write path)
+  workbench opencode <repo>  same, for opencode
+  workbench ssh              zsh login as agent, landing in \$FM_HOME (~/firstmate)
+  workbench stop / status
+
+Repos: pass a name under ~/work (or one level into its org dirs) or an absolute
+path; outside the mounted set is refused. tmux sessions persist across ssh
+drops - detach comes back with the same command; a rotated key takes effect in
+fresh sessions.
+EOF
+  exit 0
+fi
+
+# --- ssh ---------------------------------------------------------------------
+
+if [ "$cmd" = "ssh" ]; then
+  need_container_running
+  load_session_secrets "" || exit 1
+  # SendEnv forwards the exported vars by name (sshd AcceptEnv workbench.conf);
+  # values never appear on the ssh command line.
+  exec ssh "${ssh_args[@]}" -o SendEnv="COHERE_API_KEY GH_TOKEN" agent@127.0.0.1 "$@"
+fi
+
+# --- pi / pi-review / opencode --------------------------------------------------
+
+tool="$cmd"
+tool_args=()
+if [ "$tool" = "pi-review" ]; then
+  # Review mode (spec 5's pi row): a tool-surface allowlist, enforceable at
+  # dispatch - the model has no write path at all. Read-only by construction.
+  tool=pi
+  tool_args=(--tools read,grep,find,ls)
+fi
+need_container_running
+phys="$(resolve_repo "${1:-}")"
+shift || true
+warn_if_dirty "$phys"
+load_session_secrets "$phys" || exit 1
+
+session_tag="$(basename "$phys" | tr -c '[:alnum:]._-' '-')"
+session="$cmd-$session_tag"
+
+env_args=(-e COHERE_API_KEY -e "TERM=${TERM:-xterm-256color}" -e WORKBENCH_SESSION="$session")
+if [ -n "${GH_TOKEN:-}" ]; then
+  env_args+=(-e GH_TOKEN)
+fi
+
+# Open (or attach) a tmux session named after tool+repo, cd'd to the repo,
+# running the agent. The tmux server inherits these env vars and passes them to
+# every later pane/session. Re-running the same command reattaches a live
+# session (start-dir and command apply only on creation).
+exec docker exec -u agent -it "${env_args[@]}" "$container" \
+  tmux new-session -A -s "$session" -c "$phys" "$tool" "${tool_args[@]}" "$@"

@@ -1,0 +1,146 @@
+// Baked workbench opencode config (sandbox spec v1). Body mirrors the host's
+// dotfiles-authored ~/.config/opencode/opencode.jsonc (providers resolve
+// {env:COHERE_API_KEY} - secret-free by construction); the differences are the
+// sandbox additions called out below. Seeded into place by workbench-init only
+// when absent; runtime changes survive until the container is recreated, which
+// is the point: agent guardrail config must reset with the container.
+{
+  "$schema": "https://opencode.ai/config.json",
+  "share": "disabled",
+  "autoshare": false,
+  // Sandbox: the image pins opencode; in-app self-update would fight the pin.
+  "autoupdate": false,
+  "model": "oss-model-vault-v2/kimi-k3-gb200",
+
+  // Sandbox additions (guardrails baked at the image layer): everything here is
+  // either a documented default restated so it can never be silently lost
+  // (.env read-deny, external_directory: ask, doom_loop: ask), an enforceable
+  // reflex deny applied pre-tool-call even under --auto (git push --force), or
+  // a blanket whole-tool deny removing dead surface (websearch - no search
+  // provider is configured in the sandbox). Enforceable against the model, but
+  // pattern-matched on tool inputs: the container boundary - not these rules -
+  // is what bounds indirection through bash.
+  "permission": {
+    "read": {
+      "*": "allow",
+      "*.env": "deny",
+      "*.env.*": "deny",
+      "*.env.example": "allow"
+    },
+    "external_directory": "ask",
+    "doom_loop": "ask",
+    "bash": {
+      "*": "allow",
+      "git push --force*": "deny",
+      "git push -f*": "deny"
+    },
+    "websearch": "deny"
+  },
+
+  "provider": {
+    "cohere-oss": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Cohere OSS",
+      "options": {
+        "baseURL": "https://api.oss-models-d8hv27.cloud.cohere.com/compatibility/v1/",
+        "apiKey": "{env:COHERE_API_KEY}"
+      },
+      "models": {
+        "glm-5-2-nvfp4": {
+          "name": "GLM-5.2 (NVFP4)",
+          "limit": {
+            "context": 320000,
+            "output": 57680
+          },
+          "interleaved": {
+            "field": "reasoning_content"
+          },
+          "cost": {
+            "input": 1.4,
+            "cache_read": 0.26,
+            "output": 4.4
+          }
+        },
+
+        "deepseek-v4-flash-0731": {
+          "name": "DeepSeek V4 Flash 0731",
+          "limit": {
+            "context": 1048576,
+            "output": 32768
+          },
+          "cost": {
+            "input": 0.14,
+            "cache_read": 0.0028,
+            "output": 0.28
+          },
+          "interleaved": {
+            "field": "reasoning_content"
+          }
+        }
+      }
+    },
+
+    // cohere-llm-gateway (tailnet) is unreachable from the sandbox - recorded
+    // v1 limitation in the spec; left in config at host parity, never default.
+    "cohere-llm-gateway": {
+      "npm": "@ai-sdk/anthropic",
+      "name": "LLM Gateway",
+      "options": {
+        "baseURL": "https://llm-gateway-acp-prod.tail5566.ts.net/v1",
+        "apiKey": "dummy"
+      },
+      "models": {
+        "claude-sonnet-5": {
+          "name": "Claude Sonnet 5"
+        },
+        "claude-opus-5": {
+          "name": "Claude Opus 5"
+        }
+      }
+    },
+
+    "oss-model-vault-v2": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "OSS Model Vault (V2)",
+      "options": {
+        "baseURL": "https://api.oss-models-5kszmt.cloud.cohere.com/v1",
+        "apiKey": "{env:COHERE_API_KEY}"
+      },
+      "models": {
+        "kimi-k3-gb200": {
+          "name": "Kimi K3",
+          "reasoning": true,
+          "tool_call": true,
+          "interleaved": {
+            "field": "reasoning_content"
+          },
+          // Total context length is 1,000,000. Use the same 90%/10% split as
+          // the other vault model.
+          "limit": {
+            "context": 900000,
+            "output": 100000
+          }
+        },
+        "glm-5-3-flash": {
+          "name": "GLM-5.3 Flash",
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          },
+          "cost": {
+            "input": 0.15,
+            "cache_read": 0.03,
+            "output": 0.5
+          },
+          "interleaved": {
+            "field": "reasoning_content"
+          }
+        }
+      }
+    }
+  }
+}

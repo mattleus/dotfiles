@@ -1,0 +1,72 @@
+#!/bin/sh
+# workbench-init: PID 1 of the workbench container (the image ENTRYPOINT,
+# running as root). Prepares sshd, claims volume ownership once, seeds baked
+# configs only when absent, writes the session environment, then hands the
+# process to sshd. Nothing durable lives in the container rootfs:
+# `docker rm` is safe anytime.
+set -eu
+
+umask 022
+
+mkdir -p /run/sshd
+ssh-keygen -A >/dev/null
+
+# Named volumes: fresh ones (and the dirs docker auto-created for them) can be
+# root-owned; the agent user is uid 501. Chown once per volume, guarded by a
+# marker file inside the volume, so the -R never reruns over a grown tree.
+# (A volume docker seeds from image content inherits the image's agent
+# ownership and skips the -R except for planting the marker.)
+for d in .pi/agent .local/share/opencode .cache/npm .cache/pnpm .local/share/mise; do
+  p="/Users/matt/$d"
+  mkdir -p "$p"
+  if [ ! -e "$p/.workbench-owned" ]; then
+    chown -R agent:agent "$p"
+    : > "$p/.workbench-owned"
+    chown agent:agent "$p/.workbench-owned"
+  fi
+done
+
+# docker auto-creates the VOLUMES' parent dirs root-owned when assembling
+# mounts; agent needs them writable for sibling caches/state (~/.cache/mise,
+# ~/.local/state/mise). Shallow chown of the parents only, every boot (cheap:
+# never recurses into the grown volume trees).
+for p in /Users/matt/.pi /Users/matt/.cache /Users/matt/.local /Users/matt/.local/share; do
+  chown agent:agent "$p"
+done
+
+# Baked, secret-free configs: copied into place ONLY when absent, so runtime
+# changes survive image rebuilds. ~/.pi/agent is a named volume (also seeded
+# by docker from the image on creation); ~/.config/opencode is container-local
+# rootfs - it resets with `docker rm`, matching "tampering resets with the
+# container". No auth file is seeded; both tools take {env:COHERE_API_KEY}.
+install -d -m 755 -o agent -g agent /Users/matt/.config /Users/matt/.config/opencode
+[ -f /Users/matt/.pi/agent/settings.json ] || \
+  install -m 644 -o agent -g agent /opt/workbench/pi-agent/settings.json /Users/matt/.pi/agent/settings.json
+[ -f /Users/matt/.pi/agent/models.json ] || \
+  install -m 644 -o agent -g agent /opt/workbench/pi-agent/models.json /Users/matt/.pi/agent/models.json
+[ -f /Users/matt/.config/opencode/opencode.jsonc ] || \
+  install -m 644 -o agent -g agent /opt/workbench/opencode/opencode.jsonc /Users/matt/.config/opencode/opencode.jsonc
+# models.dev catalog: network fetch is the default; the image-baked copy is the
+# fallback when the fetch is unavailable (spec 7's "network + baked-cache").
+install -d -m 755 -o agent -g agent /Users/matt/.cache/opencode
+[ -f /Users/matt/.cache/opencode/models.json ] || \
+  install -m 644 -o agent -g agent /opt/workbench/opencode/models.json /Users/matt/.cache/opencode/models.json
+
+# Session environment. sshd gives login shells a scrubbed environment, so the
+# image ENV never reaches ssh sessions; materialize the non-secret part into
+# agent's .zshenv - read by every zsh, login or not. Rewritten on every boot
+# (init owns this file; keep in sync with the Dockerfile's ENV line). Secrets
+# are NOT here: COHERE_API_KEY/GH_TOKEN ride per-session -e/SetEnv injection
+# from the wrapper and never touch the disk.
+install -m 644 -o agent -g agent /dev/null /Users/matt/.zshenv
+cat > /Users/matt/.zshenv <<'EOF'
+# written by workbench-init on every boot - edits are not kept
+export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
+export FM_HOME=/Users/matt/firstmate
+export NPM_CONFIG_CACHE=/Users/matt/.cache/npm
+export PI_SKIP_VERSION_CHECK=1 PI_OFFLINE=1 PI_TELEMETRY=0
+export OPENCODE_DISABLE_AUTOUPDATE=1 OPENCODE_DISABLE_LSP_DOWNLOAD=1
+export GIT_TERMINAL_PROMPT=0
+EOF
+
+exec /usr/sbin/sshd -D -e

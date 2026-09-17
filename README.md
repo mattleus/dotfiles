@@ -47,7 +47,7 @@ Change the host label or CPU architecture if needed, and read the Homebrew clean
 ./bootstrap.sh
 ```
 
-`bootstrap.sh` does four things, in order:
+`bootstrap.sh` does five things, in order:
 
 1. Installs Determinate Nix, if it isn't already installed.
 2. Symlinks this repo to `~/.dotfiles`.
@@ -55,6 +55,8 @@ Change the host label or CPU architecture if needed, and read the Homebrew clean
 3. Checks the `user` configured in `flake.nix` against your actual macOS username, and offers to fix it for you if they differ.
 4. Runs the first `darwin-rebuild switch`.
    It fetches the `darwin-rebuild` tool from the nix-darwin 26.05 release branch, then applies this repo's locked flake config.
+5. Sizes the colima VM for the workbench (8 vCPU / 20 GiB / 100 GiB, vz + virtiofs + mount-inotify).
+   If the VM is already running at a different size, bootstrap just prints the resize command for a convenient moment instead of restarting it (a restart pauses other containers on the VM).
 
 After that, `darwin-rebuild` exists and you're on the normal workflow below.
 
@@ -179,44 +181,37 @@ Both packages execute with your full user permissions and must be trusted like a
 
 Home Manager deliberately does not manage `~/.pi/agent` itself, or Pi authentication, sessions, trust decisions, caches, npm/git package trees, or any other runtime state. The model overrides contain no credentials or endpoint settings, do not choose a default model, and only take effect after you authenticate Pi yourself. This remains an additive post-video layer: it does not install Pi, a launcher, or package source code into this repository.
 
-## pi-box: unrestricted Pi in a container
+## workbench: the sandboxed agent workstation in a container
 
-`pi-box` runs Pi with no permission prompts inside a disposable container on colima's docker VM, so a full-power agent session can't touch the host.
-Only the current project directory and `~/.pi/agent` (models, settings, sessions, auth) enter the container, which runs as a non-root user and is deleted when Pi exits.
-
-```sh
-pi-box        # from any project directory under ~/
-```
-
-The image (`docker/agent-box/Dockerfile`: Node LTS, git, gh, ripgrep, Pi) builds on first run and rebuilds automatically whenever that file changes.
-If colima isn't running, `pi-box` prints `need: colima start` and exits; it never starts or reconfigures the VM itself.
-Commits made inside the container reuse the git identity your host would use for that directory.
-
-## agentbox: the full agent workstation in a container
-
-`agentbox` turns the pi-box image into a long-lived workstation: one container named `agentbox` runs `sshd` as its init, and you ssh in to a zsh login as user `agent` with the whole fleet toolchain (pi, herdr, no-mistakes, treehouse, tmux, gh) unrestricted inside, while the Mac stays untouched.
+`workbench` runs the coding agents (pi, opencode) and the whole firstmate fleet inside one disposable container on colima's docker VM, so a full-power agent session can't damage the Mac beyond recovery. The container plus its mount topology is the only load-bearing boundary; guardrails (opencode permission denies, a pre-push tripwire, and GitHub branch protection) sit on top and never stand alone. This replaces the retired `pi-box`/`agentbox` pair.
 
 ```sh
-agentbox up       # builds the image if it changed, starts the container, verifies ssh, prints usage
-agentbox ssh      # attach: zsh login landing in ~/firstmate, like on the host
-agentbox stop     # stop; all state lives in the mounted host dirs - nothing is lost
-agentbox status   # container state + ssh reachability
+workbench up                  # builds the image if it changed, starts the container, verifies ssh,
+                              # warns on dirty ~/work trees, prints usage
+workbench pi <repo>           # pi TUI in a tmux session, cd'd to the repo (name under ~/work, or path)
+workbench pi-review <repo>    # pi with --tools read,grep,find,ls: no write path, review mode
+workbench opencode <repo>     # same, for opencode
+workbench ssh                 # zsh login as agent, landing in the fleet home (~/firstmate) - enter the fleet here
+workbench stop                # stop; durable state lives in host mounts + named volumes
+workbench status              # container, ssh reachability, credential readiness, env hygiene
 ```
 
-One-time setup: an env file under `~/.config/agentbox/` (gitignored, never committed - the `up` subcommand prints this same recipe when it's missing):
+The colima VM the workbench expects is **8 vCPU / 20 GiB / 100 GiB disk** (`colima start --cpu 8 --memory 20 --disk 100 --vm-type vz --mount-type virtiofs --mount-inotify`; a restart of the current VM to resize it pauses any other containers on it, e.g. dataharness). The wrapper never starts or reconfigures the VM.
 
-```sh
-mkdir -p ~/.config/agentbox && chmod 700 ~/.config/agentbox
-cat > ~/.config/agentbox/env <<'EOF'
-COHERE_API_KEY=<your Cohere key>
-# GH_TOKEN=<optional>  - overrides the staged gh accounts inside when set
-EOF
-chmod 600 ~/.config/agentbox/env
-```
+Boundary: read-write bind mounts at the SAME absolute paths as the host - `~/work`, `~/repos/github/cohere-ai`, `~/repos/github/reliant-ai` (symlink targets of `~/work/*`), and the fleet home itself (`~/repos/public/firstmate`, with the image symlinking `~/firstmate` like the host so fleet records resolve by both spellings). Caches and toolchains live in named volumes (`workbench-pi-agent`, `workbench-opencode-data`, `workbench-npm-cache`, `workbench-pnpm-cache`, `workbench-mise`) - all disposable, all surviving `docker rm`. The agent user is uid 501 with `HOME=/Users/matt`, so paths spell identically inside and out. Never mounted or injected: `~/.secrets`, `~/.ssh`, `~/.config/gh`, `~/.docker`, cloud creds, browser profiles, any `auth.json`, and never `docker.sock`.
 
-Only `COHERE_API_KEY` is required. GitHub access inside the box is the same multi-account setup as the host: at every `up`, the script re-stages each `gh` account with its token from the host's login keychain into the private `~/.config/agentbox/gh/` directory (mode 700, files 600) and mounts it read-only over the box's `~/.config/gh`, and it copies the host's ssh config, every `IdentityFile` the config names (plus their `.pub`s), and `known_hosts` into the box's own `~/.ssh` - so all three `gh` accounts are ready inside and the `github-cohere` / `github-personal` / `github-reliant` host aliases work for git exactly as on the host. `GH_TOKEN` remains an optional pass-through override for when a single token is preferable; because at least one repo here refuses PATs outright, a PAT is never required. Nothing in the image bakes credentials: every secret enters at container-create or `up` time only. `agentbox up` also generates a dedicated ed25519 keypair at `~/.config/agentbox/id_agentbox` purely for host-to-box ssh, and editing the env file just takes one `agentbox up` to re-inject (the container is recreated when the file or the script changes).
+Secrets live as macOS keychain generic passwords, injected **per session** (`docker exec -e` / ssh `SetEnv`) by the wrapper, so the container-wide environment stays secret-free (`docker inspect` shows nothing; the value dies with the session's process tree):
 
-The mount boundary is `~/repos`, `~/.pi/agent`, and `~/.treehouse`, all read-write at the same absolute paths as the host, plus the staged gh state mounted read-only at the box's `~/.config/gh`. The box's `agent` user has `/Users/matt` as HOME and the image symlinks `/Users/matt/firstmate` -> `/Users/matt/repos/public/firstmate`, exactly as on the host, so fleet records, pi sessions, and treehouse-pooled worktrees all resolve with identical spellings inside and out: the fleet runs inside the box, but shares the host's fleet home completely. The rest of HOME stays out: the host `~/.ssh` files themselves are never mounted - the box gets fresh copies at `up` (they're home-manager symlinks into the Nix store, which a bind mount couldn't even resolve in the VM), so rotating a host key just takes one `agentbox up`.
+- `COHERE_API_KEY` (required): the first session asks for it once - paste from Bitwarden - and stores it as `security add-generic-password -s COHERE_API_KEY -a "$USER" -w`. Every later session reads the keychain. (Critical pitfall the wrapper exists for: if the var is *unset*, opencode's `{env:...}` substitution yields an empty string and its `auth.json` fallback does NOT activate.)
+- `sandbox-gh-token` (optional): a dedicated fine-grained PAT (`contents:write` + `pull_requests:write`, selected repos, no `workflows:write`) as `security add-generic-password -s sandbox-gh-token -a "$USER" -w "ghp_..."`. When absent, git/gh auth falls back to the token of the host `gh` account matching the session's tree.
+
+Git pushes from inside are HTTPS-only: a baked `/etc/gitconfig` rewrites `git@github.com:` and the host's ssh-alias remotes to `https://github.com/` and serves auth via `gh auth git-credential` against the injected `GH_TOKEN` (no ssh keys, no agent forwarding). `gh pr create` inside a *direct-session* host checkout needs the repo spelled out (`gh pr create --repo owner/repo`) because gh can't resolve the host's ssh-alias remotes; the fleet's own clones get plain https remotes and work as-is. Commits use the host's global git identity, written to the container's `~/.gitconfig` at every `up`.
+
+Conventions the boundary relies on: commit/stash before handing a mounted repo to an agent (`up` scans `~/work` heads-up style; `pi`/`opencode <repo>` warn per-repo), review diffs in the host editor, and PR-first delivery for fleet work. Branch protection denying force-push + deletion on fleet-target repos' default branches is the one enforcement point outside the container; a baked pre-push tripwire (honestly labeled a speed bump - `--no-verify` bypasses it) catches the reflex inside.
+
+The image (`docker/workbench/Dockerfile`: Node 24, git, gh, ripgrep, tmux, mise, sha256-pinned herdr/treehouse/no-mistakes, pinned pi + opencode + axi CLIs) builds on `up` and rebuilds automatically whenever its inputs change; the container recreates when the image or the wrapper changes. Baked secret-free configs (pi settings/models, sandboxed `opencode.jsonc` with the guardrail permission block) seed into place only when absent, so runtime changes survive image rebuilds - and `docker rm` re-seeds from the image, which is the point.
+
+Human one-time items live outside this repo by design (bootstrap can't set them declaratively): the two keychain entries above, the fine-grained PAT creation on GitHub, branch protection flipping on org repos where you lack admin, and firstmate's per-clone trust approvals. `up` also generates a dedicated ed25519 keypair at `~/.config/workbench/id_workbench` purely for host-to-container ssh.
 
 ## Notes
 
