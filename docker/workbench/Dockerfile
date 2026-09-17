@@ -167,6 +167,13 @@ RUN mkdir -p "$HOME/.pi/agent" \
 # tmux: pi's TUI wants extended-keys (modified Enter etc). Container-wide
 # default; users can still override with their own ~/.tmux.conf.
 RUN printf '%s\n' 'set -g extended-keys on' > /Users/matt/.tmux.conf
+
+# mattpocock skills pack: canonical copy in ~/.agents/skills with per-agent
+# symlinks (pi reads ~/.pi/agent/skills; opencode's universal path reads the
+# canonical copy). home.nix also installs claude-code/codex scopes; only
+# pi/opencode exist in the sandbox.
+RUN env DISABLE_TELEMETRY=1 npx --yes skills@latest add mattpocock/skills \
+      --skill '*' --global --agent pi --agent opencode --yes </dev/null
 # mise activates per interactive shell; the shims dir joins PATH via the
 # init-written .zshenv so pinned per-repo runtimes also resolve non-interactively.
 # Idiomatic version files (.nvmrc, .node-version) are off by default in recent mise;

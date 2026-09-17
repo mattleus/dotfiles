@@ -50,6 +50,22 @@ if [ ! -d /Users/matt/.pi/agent/themes ]; then
   cp -R /opt/workbench/pi-agent/themes/. /Users/matt/.pi/agent/themes/
   chown -R agent:agent /Users/matt/.pi/agent/themes
 fi
+# Skills: image bakes the canonical pack at ~/.agents/skills and the CLI's
+# relative symlinks at ~/.pi/agent/skills. Existing volumes predate the bake,
+# so link any missing entries (only absent ones; volume-owned otherwise).
+# opencode reads the canonical dir directly and needs nothing here.
+if [ -d /Users/matt/.agents/skills ]; then
+  install -d -m 755 -o agent -g agent /Users/matt/.pi/agent/skills
+  for s in /Users/matt/.agents/skills/*/; do
+    name="$(basename "$s")"
+    target="../../../.agents/skills/$name"
+    link="/Users/matt/.pi/agent/skills/$name"
+    if [ ! -e "$link" ]; then
+      ln -s "$target" "$link"
+      chown -h agent:agent "$link"
+    fi
+  done
+fi
 [ -f /Users/matt/.config/opencode/opencode.jsonc ] || \
   install -m 644 -o agent -g agent /opt/workbench/opencode/opencode.jsonc /Users/matt/.config/opencode/opencode.jsonc
 # models.dev catalog: network fetch is the default; the image-baked copy is the

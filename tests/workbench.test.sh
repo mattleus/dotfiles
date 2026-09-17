@@ -132,6 +132,12 @@ grep -q 'themes' "$WRAPPER" \
 grep -q 'pi-agent/themes' "$BENCH/workbench-init" \
   && pass "init seeds pi themes when absent" \
   || fail "init does not seed pi themes"
+grep -q 'skills@latest add mattpocock/skills' "$BENCH/Dockerfile" \
+  && pass "image bakes the mattpocock skills pack" \
+  || fail "mattpocock skills pack not baked"
+grep -q 'agents/skills' "$BENCH/workbench-init" \
+  && pass "init backfills pi skill symlinks for existing volumes" \
+  || fail "init does not backfill pi skill symlinks"
 [ -f "$ROOT/home/.pi/agent/themes/rose-pine-moon.json" ] \
   && pass "authored rose-pine-moon theme present to stage" \
   || fail "rose-pine-moon theme source missing"
