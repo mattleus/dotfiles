@@ -455,7 +455,8 @@ Repos: omit to use the current directory, or pass a name under ~/work (or one
 level into its org dirs, or ~/.firstmate/projects/, or "firstmate" itself) or
 an absolute path; outside the
 mounted set is refused. tmux sessions persist across ssh drops - detach (C-b d)
-and rerun the same command to rejoin; a rotated key takes effect in fresh
+and rerun the same command to rejoin; quit the agent then exit the pane shell
+to end a session outright; a rotated key takes effect in fresh
 sessions.
 EOF
   exit 0
@@ -500,6 +501,9 @@ fi
 # when the agent exits you land in a repo shell instead of losing the window.
 # Exit paths: `exit`/C-d in that shell ends the session and returns to the host;
 # C-b d detaches at any time (session persists - rerun the command to rejoin).
+# Repeat the escape hatch here: the attach below is fullscreen, and the herdr
+# pane it runs in never shows this header comment.
+echo "workbench: C-b d detaches any time (session persists); to leave fully, quit the agent then exit the pane shell." >&2
 if docker exec -u agent "$container" tmux has-session -t "$session" 2>/dev/null; then
   exec docker exec -u agent -it "${env_args[@]}" "$container" tmux attach-session -t "$session"
 else
