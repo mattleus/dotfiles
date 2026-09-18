@@ -11,4 +11,8 @@ end
 -- duplicate line/selection below; :t copies without touching registers (clipboard stays intact)
 vim.keymap.set('n', '<leader>d', ':t.<CR>', { desc = 'Duplicate Line Below' })
 vim.keymap.set('x', '<leader>d', ":t'><CR>", { desc = 'Duplicate Selection Below' })
+-- replace the word under the cursor file-wide; the rhs is a pre-filled :%s with the
+-- cursor parked between the two middle slashes, so typing enters the replacement and
+-- the gc suffix still confirms each change; \< \> anchor on word boundaries
+vim.keymap.set('n', '<leader>r', [[:%s/\<<C-r><C-w>\>//gc<Left><Left><Left>]], { desc = 'Replace Word in File (confirm each)' })
 
