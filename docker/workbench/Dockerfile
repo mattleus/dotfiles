@@ -92,18 +92,16 @@ RUN npm install -g --ignore-scripts @earendil-works/pi-coding-agent@0.85.1 \
  && npm install -g opencode-ai@1.18.31
 
 # The workbench shares the host fleet layout: agent's HOME is /Users/matt so
-# paths spelled identically on the host (~/work, ~/repos, the ~/firstmate
-# symlink into the firstmate checkout) resolve unchanged inside. uid 501
-# matches the macOS first user, so files on colima's virtiofs share of host
-# $HOME stay readable/writable. Password '*' means no password login but the
-# account is not locked, so ssh pubkey auth works. /Users/matt itself is
-# container-local; only the mounted subtrees and named volumes land on it.
-# The ~/firstmate symlink matches the host spelling (FM_HOME resolves through
-# it to the mounted checkout at repos/public/firstmate).
+# paths spelled identically on the host (~/work, ~/repos, the ~/firstmate code
+# root, the ~/.firstmate fleet home, ~/.treehouse worktrees - all bind mounts)
+# resolve unchanged inside. uid 501 matches the macOS first user, so files on
+# colima's virtiofs share of host $HOME stay readable/writable. Password '*'
+# means no password login but the account is not locked, so ssh pubkey auth
+# works. /Users/matt itself is container-local; only the mounted subtrees and
+# named volumes land on it.
 RUN install -d /Users \
  && useradd --create-home --home-dir /Users/matt --shell /usr/bin/zsh \
-      --uid 501 --password '*' agent \
- && ln -s /Users/matt/repos/public/firstmate /Users/matt/firstmate
+      --uid 501 --password '*' agent
 
 # Baked, secret-free configs. pi settings.json/models.json are staged copies of
 # home/.pi/agent/ (apiKey values are $COHERE_API_KEY env references, never
@@ -118,6 +116,24 @@ COPY config/opencode/opencode.jsonc /opt/workbench/opencode/opencode.jsonc
 # back to when the network fetch fails (spec: network + baked-cache fallback).
 RUN curl -fsSL https://models.dev/api.json -o /opt/workbench/opencode/models.json \
  && test "$(stat -c %s /opt/workbench/opencode/models.json)" -gt 10000
+
+# pi project trust: pi gates project-local resources (.pi/, .agents/skills)
+# behind a per-cwd decision in trust.json, walking ancestors - so trusting the
+# mounted roots covers every repo, every fleet clone, and every treehouse
+# worktree. The container is the boundary, so gating inside it buys nothing;
+# baking this avoids a trust prompt per repo on pi startup inside the sandbox.
+# Cataloged at /opt for the init merge; the agent step below fans it into the
+# volume-seeding pi-agent dir.
+RUN printf '%s\n' \
+      '{' \
+      '"/Users/matt/work": true,' \
+      '"/Users/matt/firstmate": true,' \
+      '"/Users/matt/.firstmate": true,' \
+      '"/Users/matt/.treehouse": true,' \
+      '"/Users/matt/repos/github/cohere-ai": true,' \
+      '"/Users/matt/repos/github/reliant-ai": true' \
+      '}' \
+      > /opt/workbench/pi-agent/trust.json
 
 # The pre-push tripwire (speed bump, honestly labeled - --no-verify bypasses
 # it): refuses non-fast-forward updates to and deletions of main/master.
@@ -167,6 +183,9 @@ RUN mkdir -p "$HOME/.pi/agent" \
 # tmux: pi's TUI wants extended-keys (modified Enter etc). Container-wide
 # default; users can still override with their own ~/.tmux.conf.
 RUN printf '%s\n' 'set -g extended-keys on' > /Users/matt/.tmux.conf
+# Seed the default project-trust store for every fresh pi-agent volume; init
+# merges /opt/workbench/pi-agent/trust.json into pre-existing volumes itself.
+RUN cp /opt/workbench/pi-agent/trust.json /Users/matt/.pi/agent/trust.json
 
 # mattpocock skills pack: canonical copy in ~/.agents/skills with per-agent
 # symlinks (pi reads ~/.pi/agent/skills; opencode's universal path reads the
@@ -202,7 +221,7 @@ RUN chmod 755 /usr/local/sbin/workbench-init
 ENV PI_SKIP_VERSION_CHECK=1 PI_OFFLINE=1 PI_TELEMETRY=0 \
     OPENCODE_DISABLE_AUTOUPDATE=1 OPENCODE_DISABLE_LSP_DOWNLOAD=1 \
     GIT_TERMINAL_PROMPT=0 \
-    FM_HOME=/Users/matt/firstmate NPM_CONFIG_CACHE=/Users/matt/.cache/npm
+    FM_HOME=/Users/matt/.firstmate NPM_CONFIG_CACHE=/Users/matt/.cache/npm
 
 WORKDIR /Users/matt
 

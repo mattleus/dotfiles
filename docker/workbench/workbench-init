@@ -66,6 +66,19 @@ if [ -d /Users/matt/.agents/skills ]; then
     fi
   done
 fi
+
+# Project trust: pi gates project-local skills (.agents/skills - e.g. the
+# firstmate pack) behind trust.json, walking ancestors. The image bakes trust
+# for the mounted roots into the volume at create; for pre-existing volumes,
+# merge the baked roots in without overriding runtime decisions (right side
+# wins in jq's `+`, so runtime entries are preserved).
+trust=/Users/matt/.pi/agent/trust.json
+[ -f "$trust" ] || printf '{}' > "$trust"
+tmp="${trust}.tmp.$$"
+if jq -s '.[0] + .[1]' /opt/workbench/pi-agent/trust.json "$trust" > "$tmp" 2>/dev/null; then
+  install -m 644 -o agent -g agent "$tmp" "$trust"
+fi
+rm -f "$tmp"
 [ -f /Users/matt/.config/opencode/opencode.jsonc ] || \
   install -m 644 -o agent -g agent /opt/workbench/opencode/opencode.jsonc /Users/matt/.config/opencode/opencode.jsonc
 # models.dev catalog: network fetch is the default; the image-baked copy is the
@@ -84,7 +97,7 @@ install -m 644 -o agent -g agent /dev/null /Users/matt/.zshenv
 cat > /Users/matt/.zshenv <<'EOF'
 # written by workbench-init on every boot - edits are not kept
 export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
-export FM_HOME=/Users/matt/firstmate
+export FM_HOME=/Users/matt/.firstmate
 export NPM_CONFIG_CACHE=/Users/matt/.cache/npm
 export PI_SKIP_VERSION_CHECK=1 PI_OFFLINE=1 PI_TELEMETRY=0
 export OPENCODE_DISABLE_AUTOUPDATE=1 OPENCODE_DISABLE_LSP_DOWNLOAD=1

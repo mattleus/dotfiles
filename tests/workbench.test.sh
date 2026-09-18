@@ -95,7 +95,9 @@ fi
 for host_path in '$HOME/work:$HOME/work' \
                  '$HOME/repos/github/cohere-ai:$HOME/repos/github/cohere-ai' \
                  '$HOME/repos/github/reliant-ai:$HOME/repos/github/reliant-ai' \
-                 '$HOME/repos/public/firstmate:$HOME/repos/public/firstmate'; do
+                 '$HOME/firstmate:$HOME/firstmate' \
+                 '$HOME/.firstmate:$HOME/.firstmate' \
+                 '$HOME/.treehouse:$HOME/.treehouse'; do
   grep -qF -- "-v \"$host_path\" \\" "$WRAPPER" \
     && pass "wrapper mounts $host_path rw at identical path" \
     || fail "wrapper missing mount $host_path"
@@ -138,6 +140,26 @@ grep -q 'skills@latest add mattpocock/skills' "$BENCH/Dockerfile" \
 grep -q 'agents/skills' "$BENCH/workbench-init" \
   && pass "init backfills pi skill symlinks for existing volumes" \
   || fail "init does not backfill pi skill symlinks"
+for root in '/Users/matt/firstmate' '/Users/matt/.firstmate' '/Users/matt/.treehouse'; do
+  grep -qF "\"$root\": true" "$BENCH/Dockerfile" \
+    && pass "image bakes trust for $root" \
+    || fail "trust.json bake missing $root"
+done
+grep -q 'repos/public/firstmate' "$BENCH/Dockerfile" "$BENCH/workbench-init" "$WRAPPER" \
+  && fail "stale pre-split firstmate path (repos/public/firstmate) still referenced" \
+  || pass "no stale repos/public/firstmate references"
+grep -q 'pi-agent/trust.json' "$BENCH/workbench-init" \
+  && pass "init merges baked trust roots without overriding runtime trust" \
+  || fail "init does not merge trust.json"
+grep -q 'firstmate/projects' "$WRAPPER" \
+  && pass "wrapper repo search includes the fleet projects dir" \
+  || fail "wrapper repo search missing firstmate/projects"
+grep -q '"firstmate"\|firstmate)' "$WRAPPER" \
+  && pass "wrapper maps the bare name firstmate to the code root" \
+  || fail "wrapper cannot resolve firstmate"
+grep -q 'send-keys' "$WRAPPER" \
+  && pass "agent runs in a zsh pane (exiting agent lands in repo shell)" \
+  || fail "agent still replaces the tmux pane - no shell exit path"
 [ -f "$ROOT/home/.pi/agent/themes/rose-pine-moon.json" ] \
   && pass "authored rose-pine-moon theme present to stage" \
   || fail "rose-pine-moon theme source missing"

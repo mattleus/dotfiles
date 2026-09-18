@@ -10,7 +10,9 @@
 #   workbench ssh [args]            ssh in as agent (secrets ride ssh SetEnv; tmux inside
 #                                   gives session persistence - start the fleet here)
 #   workbench pi <repo> [args]      inject COHERE_API_KEY (+ GH_TOKEN) per-exec, open pi
-#                                   in a tmux session cd'd to the bind-mounted repo
+#                                   in a tmux session cd'd to the bind-mounted repo.
+#                                   pi exits into a zsh at the repo; exit/C-d returns
+#                                   to the host, C-b d detaches while pi keeps running.
 #   workbench pi-review <repo>      same, but pi runs with --tools read,grep,find,ls -
 #                                   no write path (review mode, enforceable at the tool surface)
 #   workbench opencode <repo> [..]  same, for opencode
@@ -23,9 +25,9 @@
 #     ~/work                          .pi/agent         (pi sessions, packages, seeded config incl. themes)
 #     ~/repos/github/cohere-ai        .local/share/opencode (opencode session data)
 #     ~/repos/github/reliant-ai       .cache/{npm,pnpm} (12x faster than the bind mount)
-#     ~/repos/public/firstmate        .local/share/mise (per-repo runtimes survive recreation)
-#       (the fleet home; ~/firstmate reaches it via the image-baked symlink,
-#        same spelling as the host - no separate mount needed)
+#     ~/firstmate (code root)         .local/share/mise (per-repo runtimes survive recreation)
+#     ~/.firstmate (FM_HOME: fleet home - state/data/config and projects/ clones)
+#     ~/.treehouse (linked worktrees of the code root and fleet clones)
 # Never mounted or injected: ~/.secrets, ~/.ssh, ~/.config/gh, ~/.docker, ~/.colima,
 # cloud credential stores, browser profiles, any auth.json. docker.sock never mounted.
 #
@@ -194,31 +196,35 @@ load_session_secrets() {
 # --- repos and dirty-tree warnings ----------------------------------------------
 
 # Resolve a repo argument to a physical path inside the mounted set. Bare names
-# are searched under ~/work and its one-level children (the two org symlink
-# targets and _landing); absolute paths are taken as-is.
+# are searched under ~/work, its one-level children (the two org symlink targets
+# and _landing), then the fleet clone dir (FM_HOME projects/). "firstmate"
+# itself resolves to the code root checkout.
 resolve_repo() {
   local arg="${1:-}" cand="" base
-  [ -n "$arg" ] || die "usage: workbench <pi|opencode> <repo>"
+  [ -n "$arg" ] || die "usage: workbench <pi|pi-review|opencode> <repo>"
   case "$arg" in
     /*)
       [ -d "$arg" ] && cand="$arg"
       ;;
+    firstmate)
+      cand="$HOME/firstmate"
+      ;;
     *)
-      for base in "$HOME/work" "$HOME/work/cohere-ai" "$HOME/work/reliant-ai" "$HOME/work/_landing"; do
+      for base in "$HOME/work" "$HOME/work/cohere-ai" "$HOME/work/reliant-ai" "$HOME/work/_landing" "$HOME/.firstmate/projects"; do
         if [ -d "$base/$arg" ]; then cand="$base/$arg"; break; fi
       done
       ;;
   esac
   if [ -z "$cand" ]; then
-    die "no such repo: $arg (looked under ~/work and one level into its org dirs; or pass an absolute path)"
+    die "no such repo: $arg (looked under ~/work and one level into its org dirs, then ~/.firstmate/projects/; or pass an absolute path)"
   fi
   cand="$(cd -P "$cand" && pwd)"
   case "$cand" in
-    "$HOME/work"/*|"$HOME/repos/github/cohere-ai"/*|"$HOME/repos/github/reliant-ai"/*|"$HOME/repos/public/firstmate"|"$HOME/repos/public/firstmate"/*)
+    "$HOME/work"/*|"$HOME/repos/github/cohere-ai"/*|"$HOME/repos/github/reliant-ai"/*|"$HOME/firstmate"|"$HOME/firstmate"/*|"$HOME/.firstmate"|"$HOME/.firstmate"/*|"$HOME/.treehouse"|"$HOME/.treehouse"/*)
       ;;
     *)
       die "$cand is outside the mounted set.
-Only ~/work, ~/repos/github/{cohere-ai,reliant-ai}, and FM_HOME (~/repos/public/firstmate) enter the sandbox."
+Only ~/work, ~/repos/github/{cohere-ai,reliant-ai}, the firstmate code root (~/firstmate), the fleet home (~/.firstmate), and ~/.treehouse enter the sandbox."
       ;;
   esac
   printf '%s' "$cand"
@@ -309,9 +315,10 @@ fi
 if [ "$cmd" = "up" ]; then
   # Boundary mounts are real host dirs; create them host-side when missing so
   # docker never auto-creates them root-owned on the share.
-  mkdir -p "$HOME/work" "$HOME/repos/github/cohere-ai" "$HOME/repos/github/reliant-ai"
-  [ -d "$HOME/repos/public/firstmate" ] \
-    || die "FM_HOME missing: $HOME/repos/public/firstmate (clone firstmate there first; home.nix's cloneFirstmate does it)"
+  mkdir -p "$HOME/work" "$HOME/repos/github/cohere-ai" "$HOME/repos/github/reliant-ai" \
+    "$HOME/.firstmate" "$HOME/.treehouse"
+  [ -d "$HOME/firstmate" ] \
+    || die "firstmate code root missing: $HOME/firstmate (clone firstmate there first; home.nix's cloneFirstmate does it)"
 
   if [ ! -f "$key_file" ]; then
     mkdir -p "$config_dir" && chmod 700 "$config_dir"
@@ -368,7 +375,9 @@ if [ "$cmd" = "up" ]; then
       -v "$HOME/work:$HOME/work" \
       -v "$HOME/repos/github/cohere-ai:$HOME/repos/github/cohere-ai" \
       -v "$HOME/repos/github/reliant-ai:$HOME/repos/github/reliant-ai" \
-      -v "$HOME/repos/public/firstmate:$HOME/repos/public/firstmate" \
+      -v "$HOME/firstmate:$HOME/firstmate" \
+      -v "$HOME/.firstmate:$HOME/.firstmate" \
+      -v "$HOME/.treehouse:$HOME/.treehouse" \
       -v workbench-pi-agent:"$box_home/.pi/agent" \
       -v workbench-opencode-data:"$box_home/.local/share/opencode" \
       -v workbench-npm-cache:"$box_home/.cache/npm" \
@@ -438,13 +447,14 @@ workbench is up.
   workbench pi <repo>        pi TUI in a tmux session, cd'd to the mounted repo
   workbench pi-review <repo> pi with read-only tool surface (no write path)
   workbench opencode <repo>  same, for opencode
-  workbench ssh              zsh login as agent, landing in \$FM_HOME (~/firstmate)
+  workbench ssh              zsh login as agent, landing in \$FM_HOME (~/.firstmate)
   workbench stop / status
 
-Repos: pass a name under ~/work (or one level into its org dirs) or an absolute
-path; outside the mounted set is refused. tmux sessions persist across ssh
-drops - detach comes back with the same command; a rotated key takes effect in
-fresh sessions.
+Repos: pass a name under ~/work (or one level into its org dirs, or
+~/.firstmate/projects/, or "firstmate" itself) or an absolute path; outside the
+mounted set is refused. tmux sessions persist across ssh drops - detach (C-b d)
+and rerun the same command to rejoin; a rotated key takes effect in fresh
+sessions.
 EOF
   exit 0
 fi
@@ -483,9 +493,18 @@ if [ -n "${GH_TOKEN:-}" ]; then
   env_args+=(-e GH_TOKEN)
 fi
 
-# Open (or attach) a tmux session named after tool+repo, cd'd to the repo,
-# running the agent. The tmux server inherits these env vars and passes them to
-# every later pane/session. Re-running the same command reattaches a live
-# session (start-dir and command apply only on creation).
-exec docker exec -u agent -it "${env_args[@]}" "$container" \
-  tmux new-session -A -s "$session" -c "$phys" "$tool" "${tool_args[@]}" "$@"
+# Open (or attach) a tmux session named after tool+repo, cd'd to the repo. The
+# agent runs inside a zsh pane (via send-keys), NOT as the session command:
+# when the agent exits you land in a repo shell instead of losing the window.
+# Exit paths: `exit`/C-d in that shell ends the session and returns to the host;
+# C-b d detaches at any time (session persists - rerun the command to rejoin).
+if docker exec -u agent "$container" tmux has-session -t "$session" 2>/dev/null; then
+  exec docker exec -u agent -it "${env_args[@]}" "$container" tmux attach-session -t "$session"
+else
+  docker exec -u agent "${env_args[@]}" "$container" \
+    tmux new-session -d -s "$session" -c "$phys"
+  printf -v agent_cmd '%q ' "$tool" "${tool_args[@]}" "$@"
+  docker exec -u agent "${env_args[@]}" "$container" \
+    tmux send-keys -t "$session" "clear; $agent_cmd" Enter
+  exec docker exec -u agent -it "${env_args[@]}" "$container" tmux attach-session -t "$session"
+fi

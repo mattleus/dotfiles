@@ -117,7 +117,7 @@ It's a real public Homebrew formula (`brew info herdr` finds it in homebrew-core
 If you don't use it, just remove it from `brews` in your copy.
 
 **About the firstmate toolchain:** `treehouse` is a real Homebrew formula, so it's in the `brews` list like `herdr`.
-`no-mistakes`, `firstmate`, and the `*-axi` CLIs (`gh-axi`, `chrome-devtools-axi`, `lavish-axi`, `tasks-axi`, `quota-axi`) have no Homebrew formula or nixpkgs package, so `home.nix` installs them with `home.activation` blocks instead: `no-mistakes` via its own curl-piped install script, `firstmate` via `git clone` into `~/repos/public/firstmate`, and the `*-axi` tools via `npm install -g` (which is why `nodejs` is in `home.packages`).
+`no-mistakes`, `firstmate`, and the `*-axi` CLIs (`gh-axi`, `chrome-devtools-axi`, `lavish-axi`, `tasks-axi`, `quota-axi`) have no Homebrew formula or nixpkgs package, so `home.nix` installs them with `home.activation` blocks instead: `no-mistakes` via its own curl-piped install script, `firstmate` via `git clone` into `~/firstmate`, and the `*-axi` tools via `npm install -g` (which is why `nodejs` is in `home.packages`).
 Each block checks whether its tool is already on `PATH` (or the clone directory already exists) before doing anything, so re-running `rebuild.sh` is a no-op once installed.
 Remove these blocks from your copy if you don't use firstmate.
 
@@ -191,14 +191,14 @@ workbench up                  # builds the image if it changed, starts the conta
 workbench pi <repo>           # pi TUI in a tmux session, cd'd to the repo (name under ~/work, or path)
 workbench pi-review <repo>    # pi with --tools read,grep,find,ls: no write path, review mode
 workbench opencode <repo>     # same, for opencode
-workbench ssh                 # zsh login as agent, landing in the fleet home (~/firstmate) - enter the fleet here
+workbench ssh                 # zsh login as agent, landing in the fleet home (~/.firstmate) - enter the fleet here
 workbench stop                # stop; durable state lives in host mounts + named volumes
 workbench status              # container, ssh reachability, credential readiness, env hygiene
 ```
 
 The colima VM the workbench expects is **8 vCPU / 20 GiB / 100 GiB disk** (`colima start --cpu 8 --memory 20 --disk 100 --vm-type vz --mount-type virtiofs --mount-inotify`; a restart of the current VM to resize it pauses any other containers on it, e.g. dataharness). The wrapper never starts or reconfigures the VM.
 
-Boundary: read-write bind mounts at the SAME absolute paths as the host - `~/work`, `~/repos/github/cohere-ai`, `~/repos/github/reliant-ai` (symlink targets of `~/work/*`), and the fleet home itself (`~/repos/public/firstmate`, with the image symlinking `~/firstmate` like the host so fleet records resolve by both spellings). Caches and toolchains live in named volumes (`workbench-pi-agent`, `workbench-opencode-data`, `workbench-npm-cache`, `workbench-pnpm-cache`, `workbench-mise`) - all disposable, all surviving `docker rm`. The agent user is uid 501 with `HOME=/Users/matt`, so paths spell identically inside and out. Never mounted or injected: `~/.secrets`, `~/.ssh`, `~/.config/gh`, `~/.docker`, cloud creds, browser profiles, any `auth.json`, and never `docker.sock`. Shell niceties the agents need are pre-baked: `fd`, pi's `rose-pine-moon` theme (staged from `home/.pi/agent/themes/`), tmux `extended-keys on`, and the mattpocock skills pack (canonical copy at `~/.agents/skills`, pi links at `~/.pi/agent/skills` - the image-init backfills those links for volumes created before the pack was baked).
+Boundary: read-write bind mounts at the SAME absolute paths as the host - `~/work`, `~/repos/github/cohere-ai`, `~/repos/github/reliant-ai` (symlink targets of `~/work/*`), the firstmate code root (`~/firstmate`), the fleet home (`~/.firstmate`, FM_HOME: state/data/config/`projects/` clones), and `~/.treehouse` (linked worktrees). Caches and toolchains live in named volumes (`workbench-pi-agent`, `workbench-opencode-data`, `workbench-npm-cache`, `workbench-pnpm-cache`, `workbench-mise`) - all disposable, all surviving `docker rm`. The agent user is uid 501 with `HOME=/Users/matt`, so paths spell identically inside and out. Never mounted or injected: `~/.secrets`, `~/.ssh`, `~/.config/gh`, `~/.docker`, cloud creds, browser profiles, any `auth.json`, and never `docker.sock`. Shell niceties the agents need are pre-baked: `fd`, pi's `rose-pine-moon` theme (staged from `home/.pi/agent/themes/`), tmux `extended-keys on`, and the mattpocock skills pack (canonical copy at `~/.agents/skills`, pi links at `~/.pi/agent/skills` - the image-init backfills those links for volumes created before the pack was baked).
 
 Secrets live as macOS keychain generic passwords, injected **per session** (`docker exec -e` / ssh `SetEnv`) by the wrapper, so the container-wide environment stays secret-free (`docker inspect` shows nothing; the value dies with the session's process tree):
 

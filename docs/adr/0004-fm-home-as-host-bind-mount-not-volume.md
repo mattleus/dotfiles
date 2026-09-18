@@ -35,3 +35,20 @@ toolchains, pi/opencode session data.
   existed are visible to the fleet in-container unchanged - same paths, same
   git checkouts, same remotes (rewritten to HTTPS by the baked insteadOf
   rules when pushes happen).
+
+## Amendment 2026-09-18: home split out of the code root
+
+The single-tree layout changed: the firstmate code root moved to the real
+directory `~/firstmate`, and the fleet home (`state/`, `data/`, `config/`,
+`projects/`) moved out of it to `~/.firstmate` (`FM_HOME`). Reason: pi loads
+`AGENTS.md` from every parent directory of its cwd, so any agent session
+opened inside a 'projects/' clone under the code root silently inherited the
+supervisor contract - the first mate persona activated inside project checkouts
+where it should be a plain coding agent. Splitting the trees removes the
+supervisor `AGENTS.md` from every fleet clone's ancestry.
+
+Mount consequences: three same-path bind mounts replace the old one -
+`~/firstmate` (code root), `~/.firstmate` (FM_HOME), and `~/.treehouse`
+(linked worktrees, which register git metadata inside the checkout's .git and
+must share its filesystem view). The host-visibility rationale above is
+unchanged; each mount is still host-browsable.

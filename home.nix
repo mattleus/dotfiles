@@ -281,7 +281,7 @@ in
   '';
 
   home.activation.cloneFirstmate = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    firstmateDir="${config.home.homeDirectory}/repos/public/firstmate"
+    firstmateDir="${config.home.homeDirectory}/firstmate"
     if [ ! -d "$firstmateDir" ]; then
       run /usr/bin/git clone https://github.com/kunchenguid/firstmate "$firstmateDir"
     fi
