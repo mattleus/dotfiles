@@ -226,6 +226,11 @@ grep -q -- '--tools read,grep,find,ls' "$WRAPPER" \
   && pass "pi-review pins the read-only tool allowlist" \
   || fail "pi-review allowlist differs from spec"
 
+# --- login-shell landing must not override an explicit pane cwd -------------------
+grep -qF '[ "$PWD" = "$HOME" ] && cd "$FM_HOME"' "$BENCH/Dockerfile" \
+  && pass "zprofile fleet-home landing only fires from HOME" \
+  || fail "zprofile teleports repo panes into FM_HOME"
+
 # --- baked models.dev cache fallback (spec 7: network + baked-cache) ---------------
 grep -q 'models.dev/api.json' "$BENCH/Dockerfile" \
   && pass "Dockerfile bakes the models.dev catalog" \

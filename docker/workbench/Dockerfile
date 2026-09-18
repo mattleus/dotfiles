@@ -201,8 +201,10 @@ RUN printf '%s\n' \
       'eval "$(mise activate zsh)"' \
       > "$HOME/.zshrc" \
  && printf '%s\n' \
-      '# land in the fleet home on interactive ssh login, as on the host' \
-      'cd "$FM_HOME" 2>/dev/null || true' \
+      '# land in the fleet home on interactive ssh login, as on the host; tmux' \
+      '# panes given an explicit cwd (workbench pi <repo>) start elsewhere and' \
+      '# must keep it - only teleport a shell that actually starts at HOME' \
+      '[ "$PWD" = "$HOME" ] && cd "$FM_HOME" 2>/dev/null || true' \
       > "$HOME/.zprofile" \
  && install -d -m 755 "$HOME/.config/mise" \
  && printf '%s\n' \
