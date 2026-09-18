@@ -79,6 +79,9 @@ in
       # so a cold start (booting the VM, or the one-time image download) never blocks
       # a new prompt; a `docker` command that races the boot just needs a retry.
       ( command -v colima &>/dev/null && ! colima status &>/dev/null && colima start &>/dev/null ) &!
+
+      # Create a new branch and immediately publish it to origin with upstream set.
+      branch() { git checkout -b "$1" && git push -u origin HEAD; }
     '';
     shellAliases = {
       ".." = "cd ..";
