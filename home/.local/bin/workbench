@@ -14,6 +14,10 @@
 #                                   pi exits into a zsh at the repo; exit/C-d returns
 #                                   to the host, C-b d detaches while pi keeps running.
 #                                   No repo argument means the current directory.
+#                                   Sessions are per tool+repo+host pane: every pane
+#                                   gets its own agent, so several panes may run pi in
+#                                   the same repo at once; re-running the command in
+#                                   the same pane rejoins that pane's agent.
 #   workbench pi-review [repo]      same, but pi runs with --tools read,grep,find,ls -
 #                                   no write path (review mode, enforceable at the tool surface)
 #   workbench opencode [repo] [..]  same, for opencode
@@ -69,7 +73,7 @@ key_file="$config_dir/id_workbench"
 me="$(id -un)"
 
 usage() {
-  sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//' >&2
+  sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//' >&2
   exit 1
 }
 
@@ -489,14 +493,22 @@ warn_if_dirty "$phys"
 load_session_secrets "$phys" || exit 1
 
 session_tag="$(basename "$phys" | tr -c '[:alnum:]._-' '-')"
-session="$cmd-$session_tag"
+# Sessions are per tool+repo+host pane: two panes pointed at the same repo each
+# run their own agent instead of mirroring one session. Pane key order:
+# HERDR_PANE_ID (Herdr 0.7.5+ injects it into every pane), else $TMUX_PANE (host
+# tmux), else this wrapper's PID (last resort; no stable pane identity outside
+# herdr/tmux, so only the env-keyed paths reattach across reruns). Herdr pane
+# ids contain colons, which tmux refuses in session target names, so the key
+# goes through the same sanitize as the repo tag.
+pane_key="$(printf '%s' "${HERDR_PANE_ID:-${TMUX_PANE:-$$}}" | tr -c '[:alnum:]._-' '-')"
+session="$cmd-$session_tag-$pane_key"
 
 env_args=(-e COHERE_API_KEY -e "TERM=${TERM:-xterm-256color}" -e WORKBENCH_SESSION="$session")
 if [ -n "${GH_TOKEN:-}" ]; then
   env_args+=(-e GH_TOKEN)
 fi
 
-# Open (or attach) a tmux session named after tool+repo, cd'd to the repo. The
+# Open (or attach) the pane's tmux session (named tool-repo-pane), cd'd to the repo. The
 # agent runs inside a zsh pane (via send-keys), NOT as the session command:
 # when the agent exits you land in a repo shell instead of losing the window.
 # Exit paths: `exit`/C-d in that shell ends the session and returns to the host;
