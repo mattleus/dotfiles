@@ -157,6 +157,9 @@ grep -q 'firstmate/projects' "$WRAPPER" \
 grep -q '"firstmate"\|firstmate)' "$WRAPPER" \
   && pass "wrapper maps the bare name firstmate to the code root" \
   || fail "wrapper cannot resolve firstmate"
+grep -qF 'arg="${1:-$PWD}"' "$WRAPPER" \
+  && pass "wrapper defaults the repo to the current directory" \
+  || fail "wrapper cannot default the repo to the current directory"
 grep -q 'send-keys' "$WRAPPER" \
   && pass "agent runs in a zsh pane (exiting agent lands in repo shell)" \
   || fail "agent still replaces the tmux pane - no shell exit path"

@@ -9,13 +9,14 @@
 #                                   scan ~/work for dirty trees, print usage
 #   workbench ssh [args]            ssh in as agent (secrets ride ssh SetEnv; tmux inside
 #                                   gives session persistence - start the fleet here)
-#   workbench pi <repo> [args]      inject COHERE_API_KEY (+ GH_TOKEN) per-exec, open pi
+#   workbench pi [repo] [args]      inject COHERE_API_KEY (+ GH_TOKEN) per-exec, open pi
 #                                   in a tmux session cd'd to the bind-mounted repo.
 #                                   pi exits into a zsh at the repo; exit/C-d returns
 #                                   to the host, C-b d detaches while pi keeps running.
-#   workbench pi-review <repo>      same, but pi runs with --tools read,grep,find,ls -
+#                                   No repo argument means the current directory.
+#   workbench pi-review [repo]      same, but pi runs with --tools read,grep,find,ls -
 #                                   no write path (review mode, enforceable at the tool surface)
-#   workbench opencode <repo> [..]  same, for opencode
+#   workbench opencode [repo] [..]  same, for opencode
 #   workbench stop                  stop the container (volumes + host mounts survive)
 #   workbench status                container/ssh reachability, credential readiness,
 #                                   container-env cleanliness
@@ -198,10 +199,10 @@ load_session_secrets() {
 # Resolve a repo argument to a physical path inside the mounted set. Bare names
 # are searched under ~/work, its one-level children (the two org symlink targets
 # and _landing), then the fleet clone dir (FM_HOME projects/). "firstmate"
-# itself resolves to the code root checkout.
+# itself resolves to the code root checkout. No argument means the current
+# directory (physical path; the mounted-set gate below refuses outside paths).
 resolve_repo() {
-  local arg="${1:-}" cand="" base
-  [ -n "$arg" ] || die "usage: workbench <pi|pi-review|opencode> <repo>"
+  local arg="${1:-$PWD}" cand="" base
   case "$arg" in
     /*)
       [ -d "$arg" ] && cand="$arg"
@@ -444,14 +445,15 @@ if [ "$cmd" = "up" ]; then
   cat <<EOF
 workbench is up.
 
-  workbench pi <repo>        pi TUI in a tmux session, cd'd to the mounted repo
-  workbench pi-review <repo> pi with read-only tool surface (no write path)
-  workbench opencode <repo>  same, for opencode
+  workbench pi [repo]        pi TUI in a tmux session, cd'd to the mounted repo
+  workbench pi-review [repo] pi with read-only tool surface (no write path)
+  workbench opencode [repo]  same, for opencode
   workbench ssh              zsh login as agent, landing in \$FM_HOME (~/.firstmate)
   workbench stop / status
 
-Repos: pass a name under ~/work (or one level into its org dirs, or
-~/.firstmate/projects/, or "firstmate" itself) or an absolute path; outside the
+Repos: omit to use the current directory, or pass a name under ~/work (or one
+level into its org dirs, or ~/.firstmate/projects/, or "firstmate" itself) or
+an absolute path; outside the
 mounted set is refused. tmux sessions persist across ssh drops - detach (C-b d)
 and rerun the same command to rejoin; a rotated key takes effect in fresh
 sessions.

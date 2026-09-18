@@ -188,9 +188,9 @@ Home Manager deliberately does not manage `~/.pi/agent` itself, or Pi authentica
 ```sh
 workbench up                  # builds the image if it changed, starts the container, verifies ssh,
                               # warns on dirty ~/work trees, prints usage
-workbench pi <repo>           # pi TUI in a tmux session, cd'd to the repo (name under ~/work, or path)
-workbench pi-review <repo>    # pi with --tools read,grep,find,ls: no write path, review mode
-workbench opencode <repo>     # same, for opencode
+workbench pi [repo]           # pi TUI in a tmux session, cd'd to the repo (current directory, or name under ~/work, or path)
+workbench pi-review [repo]    # pi with --tools read,grep,find,ls: no write path, review mode
+workbench opencode [repo]     # same, for opencode
 workbench ssh                 # zsh login as agent, landing in the fleet home (~/.firstmate) - enter the fleet here
 workbench stop                # stop; durable state lives in host mounts + named volumes
 workbench status              # container, ssh reachability, credential readiness, env hygiene
