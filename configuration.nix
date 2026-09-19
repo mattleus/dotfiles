@@ -74,6 +74,7 @@
       "telegram"
       "whatsapp"
       "brave-browser"
+      "zed"
       "rectangle"
       "google-drive"
       "opensuperwhisper"
