@@ -190,9 +190,9 @@ RUN printf '%s\n' 'set -g extended-keys on' > /Users/matt/.tmux.conf
 RUN cp /opt/workbench/pi-agent/trust.json /Users/matt/.pi/agent/trust.json
 
 # mattpocock skills pack: canonical copy in ~/.agents/skills with per-agent
-# symlinks (pi reads ~/.pi/agent/skills; opencode's universal path reads the
-# canonical copy). home.nix also installs claude-code/codex scopes; only
-# pi/opencode exist in the sandbox.
+# symlinks (pi reads ~/.pi/agent/skills; opencode reads ~/.config/opencode/skills).
+# home.nix also installs claude-code/codex scopes; only pi/opencode exist in the
+# sandbox.
 RUN env DISABLE_TELEMETRY=1 npx --yes skills@latest add mattpocock/skills \
       --skill '*' --global --agent pi --agent opencode --yes </dev/null
 # mise activates per interactive shell; the shims dir joins PATH via the
@@ -201,6 +201,10 @@ RUN env DISABLE_TELEMETRY=1 npx --yes skills@latest add mattpocock/skills \
 # enable them alongside .tool-versions (the spec's per-repo resolution inputs).
 RUN printf '%s\n' \
       'eval "$(mise activate zsh)"' \
+      '' \
+      '# pleasant default: show just the trailing cwd folder instead of the' \
+      '# container host/image-ish zsh default' \
+      "PROMPT='%1~ %# '" \
       > "$HOME/.zshrc" \
  && printf '%s\n' \
       '# land in the fleet home on interactive ssh login, as on the host; tmux' \

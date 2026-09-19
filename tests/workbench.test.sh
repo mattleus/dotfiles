@@ -146,6 +146,9 @@ grep -q 'skills@latest add mattpocock/skills' "$BENCH/Dockerfile" \
 grep -q 'agents/skills' "$BENCH/workbench-init" \
   && pass "init backfills pi skill symlinks for existing volumes" \
   || fail "init does not backfill pi skill symlinks"
+grep -q '.config/opencode/skills' "$BENCH/workbench-init" \
+  && pass "init backfills opencode skill symlinks for existing containers" \
+  || fail "init does not backfill opencode skill symlinks"
 grep -q 'COPY config/herdr/config.toml' "$BENCH/Dockerfile" \
   && pass "image bakes the repo-authored herdr config" \
   || fail "image does not bake herdr config"
@@ -243,6 +246,11 @@ grep -q 'pi-review' "$WRAPPER" \
 grep -q -- '--tools read,grep,find,ls' "$WRAPPER" \
   && pass "pi-review pins the read-only tool allowlist" \
   || fail "pi-review allowlist differs from spec"
+
+# --- workbench shell defaults ------------------------------------------------------
+grep -qF "PROMPT='%1~ %# '" "$BENCH/Dockerfile" \
+  && pass "zsh prompt shows only the trailing cwd folder" \
+  || fail "zsh prompt is not the trailing cwd folder"
 
 # --- login-shell landing must not override an explicit pane cwd -------------------
 grep -qF '[ "$PWD" = "$HOME" ] && cd "$FM_HOME"' "$BENCH/Dockerfile" \

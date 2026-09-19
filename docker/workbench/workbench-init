@@ -53,17 +53,21 @@ fi
 # Skills: image bakes the canonical pack at ~/.agents/skills and the CLI's
 # relative symlinks at ~/.pi/agent/skills. Existing volumes predate the bake,
 # so link any missing entries (only absent ones; volume-owned otherwise).
-# opencode reads the canonical dir directly and needs nothing here.
+# Both agent CLIs get their per-agent symlinks here too: pi reads
+# ~/.pi/agent/skills, opencode reads ~/.config/opencode/skills, and both point
+# back into the canonical pack so opencode-from-herdr sees the same set pi does.
 if [ -d /Users/matt/.agents/skills ]; then
-  install -d -m 755 -o agent -g agent /Users/matt/.pi/agent/skills
+  install -d -m 755 -o agent -g agent /Users/matt/.pi/agent/skills /Users/matt/.config/opencode/skills
   for s in /Users/matt/.agents/skills/*/; do
     name="$(basename "$s")"
     target="../../../.agents/skills/$name"
-    link="/Users/matt/.pi/agent/skills/$name"
-    if [ ! -e "$link" ]; then
-      ln -s "$target" "$link"
-      chown -h agent:agent "$link"
-    fi
+    for skills_dir in /Users/matt/.pi/agent/skills /Users/matt/.config/opencode/skills; do
+      link="$skills_dir/$name"
+      if [ ! -L "$link" ] && [ ! -e "$link" ]; then
+        ln -s "$target" "$link"
+        chown -h agent:agent "$link"
+      fi
+    done
   done
 fi
 
