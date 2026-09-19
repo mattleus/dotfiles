@@ -6,8 +6,8 @@
 # Copyright (c) 2026 Kun Chen. MIT License - see home/.pi/agent/extensions/calm/LICENSE.
 #
 # Coverage:
-# - zero coupling: no forbidden identifiers anywhere in the shipped source,
-#   tests, or docs, and the runtime state file is never tracked or managed;
+# - zero coupling: no forbidden identifiers in the shipped source or its tests,
+#   and the runtime state file is never tracked or managed;
 # - static wiring: Home Manager auto-load, TypeScript typecheck, JS syntax;
 # - preference: off by default, persisted toggle, malformed/unwritable state;
 # - filtering: the seven built-in tool shells hide gaplessly while custom tools
@@ -102,8 +102,10 @@ test_zero_coupling_and_state_file() {
   local pat_fm_home="FM_""HOME" pat_fm_root="FM_""ROOT" pat_config="config/""calm"
   local pat_watch="fm_""watch_arm_pi" pat_op="FIRSTMATE""_OP" pat_dash="fm-""calm"
 
-  # The operational marker and upstream runtime surfaces must not exist anywhere.
-  for file in $source_files "$ROOT/tests/pi-calm.test.sh" "$ROOT/tests/lib.sh" "$ROOT/README.md" "$ROOT/home.nix"; do
+  # The operational marker and upstream runtime surfaces must not exist in the
+  # shipped extension or its tests. The repo README legitimately discusses the
+  # wider firstmate/workbench toolchain and is not Calm documentation.
+  for file in $source_files "$ROOT/tests/pi-calm.test.sh" "$ROOT/tests/lib.sh"; do
 
     assert_not_contains "$(cat "$file")" "$pat_fm_home" "$file mentions $pat_fm_home"
     assert_not_contains "$(cat "$file")" "$pat_fm_root" "$file mentions $pat_fm_root"
@@ -117,7 +119,7 @@ test_zero_coupling_and_state_file() {
   # to the extension tree: README/home.nix legitimately discuss the upstream
   # toolchain elsewhere (clone block, toolchain notes), so the attribution rule
   # applies to the shipped extension itself. The forbidden-identifier sweep
-  # above still covers README.md and home.nix.
+  # above covers the shipped extension and its tests.
   local attribution_name="First""mate"
   license_hits=$(grep -rni "$attribution_name" "$CALM_DIR" 2>/dev/null | grep -v "Adapted from" || true)
   [ -z "$license_hits" ] || fail "unexpected upstream references outside license attribution: $license_hits"

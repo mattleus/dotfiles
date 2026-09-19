@@ -120,6 +120,9 @@ done
 grep -q '/docker/workbench/config/pi-agent/' "$ROOT/.gitignore" \
   && pass "staged pi config build context is gitignored" \
   || fail "staged pi config build context not gitignored"
+grep -q '/docker/workbench/config/herdr/' "$ROOT/.gitignore" \
+  && pass "staged herdr config build context is gitignored" \
+  || fail "staged herdr config build context not gitignored"
 if grep -q 'find-generic-password\|env.local' "$WRAPPER"; then
   pass "wrapper reads secrets from the keychain or env.local"
 else
@@ -131,6 +134,9 @@ grep -q 'env.local' "$WRAPPER" \
 grep -q 'themes' "$WRAPPER" \
   && pass "wrapper stages pi themes into the build context" \
   || fail "wrapper does not stage pi themes"
+grep -q 'home/.config/herdr/config.toml' "$WRAPPER" \
+  && pass "wrapper stages herdr config into the build context" \
+  || fail "wrapper does not stage herdr config"
 grep -q 'pi-agent/themes' "$BENCH/workbench-init" \
   && pass "init seeds pi themes when absent" \
   || fail "init does not seed pi themes"
@@ -140,6 +146,12 @@ grep -q 'skills@latest add mattpocock/skills' "$BENCH/Dockerfile" \
 grep -q 'agents/skills' "$BENCH/workbench-init" \
   && pass "init backfills pi skill symlinks for existing volumes" \
   || fail "init does not backfill pi skill symlinks"
+grep -q 'COPY config/herdr/config.toml' "$BENCH/Dockerfile" \
+  && pass "image bakes the repo-authored herdr config" \
+  || fail "image does not bake herdr config"
+grep -q '.config/herdr/config.toml' "$BENCH/workbench-init" \
+  && pass "init seeds herdr config when absent" \
+  || fail "init does not seed herdr config"
 for root in '/Users/matt/firstmate' '/Users/matt/.firstmate' '/Users/matt/.treehouse'; do
   grep -qF "\"$root\": true" "$BENCH/Dockerfile" \
     && pass "image bakes trust for $root" \
@@ -166,6 +178,9 @@ grep -qF 'arg="${1:-$PWD}"' "$WRAPPER" \
 grep -q 'send-keys' "$WRAPPER" \
   && pass "agent runs in a zsh pane (exiting agent lands in repo shell)" \
   || fail "agent still replaces the tmux pane - no shell exit path"
+grep -q 'workbench herdr' "$WRAPPER" \
+  && pass "wrapper offers the in-sandbox herdr entry" \
+  || fail "wrapper lacks the in-sandbox herdr entry"
 [ -f "$ROOT/home/.pi/agent/themes/rose-pine-moon.json" ] \
   && pass "authored rose-pine-moon theme present to stage" \
   || fail "rose-pine-moon theme source missing"

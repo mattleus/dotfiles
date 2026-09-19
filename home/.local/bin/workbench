@@ -9,6 +9,8 @@
 #                                   scan ~/work for dirty trees, print usage
 #   workbench ssh [args]            ssh in as agent (secrets ride ssh SetEnv; tmux inside
 #                                   gives session persistence - start the fleet here)
+#   workbench herdr [args]          ssh straight into herdr inside the sandbox; pi/opencode
+#                                   launched from it inherit the injected session secrets
 #   workbench pi [repo] [args]      inject COHERE_API_KEY (+ GH_TOKEN) per-exec, open pi
 #                                   in a tmux session cd'd to the bind-mounted repo.
 #                                   pi exits into a zsh at the repo; exit/C-d returns
@@ -69,7 +71,7 @@ key_file="$config_dir/id_workbench"
 me="$(id -un)"
 
 usage() {
-  sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//' >&2
+  sed -n '/^#   workbench /p' "$0" | sed 's/^# \{0,1\}//' >&2
   exit 1
 }
 
@@ -264,7 +266,7 @@ ssh_args=(-p "$port" -i "$key_file"
 
 cmd="${1:-}"; [ $# -gt 0 ] && shift
 case "$cmd" in
-  up|ssh|pi|pi-review|opencode|stop|status) ;;
+  up|ssh|herdr|pi|pi-review|opencode|stop|status) ;;
   *) usage ;;
 esac
 
@@ -326,10 +328,11 @@ if [ "$cmd" = "up" ]; then
     ssh-keygen -q -t ed25519 -N '' -C workbench -f "$key_file"
   fi
 
-  # Stage the authored pi configs (single source of truth under home/) into the
-  # build context; the Dockerfile COPYs them and never reaches outside it.
-  # config/pi-agent/ is gitignored - the staged files are derived artifacts.
-  mkdir -p "$bench_dir/config/pi-agent/themes"
+  # Stage the authored pi + herdr configs (single source of truth under home/)
+  # into the build context; the Dockerfile COPYs them and never reaches outside it.
+  # config/{pi-agent,herdr}/ are gitignored - the staged files are derived artifacts.
+  mkdir -p "$bench_dir/config/pi-agent/themes" "$bench_dir/config/herdr"
+  cp "$repo_root/home/.config/herdr/config.toml" "$bench_dir/config/herdr/config.toml"
   cp "$repo_root/home/.pi/agent/settings.json" "$bench_dir/config/pi-agent/settings.json"
   cp "$repo_root/home/.pi/agent/models.json" "$bench_dir/config/pi-agent/models.json"
   if [ -d "$repo_root/home/.pi/agent/themes" ]; then
@@ -341,6 +344,7 @@ if [ "$cmd" = "up" ]; then
   # on each run.
   want_hash="$(
     { shasum -a 256 "$dockerfile" "$init_script" \
+        "$bench_dir/config/herdr/config.toml" \
         "$bench_dir/config/opencode/opencode.jsonc" \
         "$bench_dir/git-template/hooks/pre-push" ;
       find "$bench_dir/config/pi-agent" -type f ! -name .DS_Store | sort | xargs shasum -a 256 ;
@@ -449,6 +453,7 @@ workbench is up.
   workbench pi-review [repo] pi with read-only tool surface (no write path)
   workbench opencode [repo]  same, for opencode
   workbench ssh              zsh login as agent, landing in \$FM_HOME (~/.firstmate)
+  workbench herdr [args]     ssh straight into herdr inside the sandbox
   workbench stop / status
 
 Repos: omit to use the current directory, or pass a name under ~/work (or one
@@ -470,6 +475,15 @@ if [ "$cmd" = "ssh" ]; then
   # SendEnv forwards the exported vars by name (sshd AcceptEnv workbench.conf);
   # values never appear on the ssh command line.
   exec ssh "${ssh_args[@]}" -o SendEnv="COHERE_API_KEY GH_TOKEN" agent@127.0.0.1 "$@"
+fi
+
+# --- herdr -------------------------------------------------------------------
+
+if [ "$cmd" = "herdr" ]; then
+  need_container_running
+  load_session_secrets "" || exit 1
+  printf -v remote_cmd '%q ' herdr "$@"
+  exec ssh "${ssh_args[@]}" -o SendEnv="COHERE_API_KEY GH_TOKEN" -t agent@127.0.0.1 "$remote_cmd"
 fi
 
 # --- pi / pi-review / opencode --------------------------------------------------

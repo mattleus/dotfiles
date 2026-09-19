@@ -79,6 +79,9 @@ if jq -s '.[0] + .[1]' /opt/workbench/pi-agent/trust.json "$trust" > "$tmp" 2>/d
   install -m 644 -o agent -g agent "$tmp" "$trust"
 fi
 rm -f "$tmp"
+install -d -m 755 -o agent -g agent /Users/matt/.config/herdr
+[ -f /Users/matt/.config/herdr/config.toml ] || \
+  install -m 644 -o agent -g agent /opt/workbench/herdr/config.toml /Users/matt/.config/herdr/config.toml
 [ -f /Users/matt/.config/opencode/opencode.jsonc ] || \
   install -m 644 -o agent -g agent /opt/workbench/opencode/opencode.jsonc /Users/matt/.config/opencode/opencode.jsonc
 # models.dev catalog: network fetch is the default; the image-baked copy is the
