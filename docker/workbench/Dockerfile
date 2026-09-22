@@ -132,6 +132,7 @@ RUN printf '%s\n' \
       '"/Users/matt/firstmate": true,' \
       '"/Users/matt/.firstmate": true,' \
       '"/Users/matt/.treehouse": true,' \
+      '"/Users/matt/Documents/agent_reports": true,' \
       '"/Users/matt/repos/github/cohere-ai": true,' \
       '"/Users/matt/repos/github/reliant-ai": true' \
       '}' \
@@ -182,9 +183,20 @@ RUN mkdir -p "$HOME/.pi/agent" \
     for pkg in $(jq -r '.packages[]' "$HOME/.pi/agent/settings.json"); do \
       pi install "$pkg" </dev/null; \
     done
-# tmux: pi's TUI wants extended-keys (modified Enter etc). Container-wide
-# default; users can still override with their own ~/.tmux.conf.
-RUN printf '%s\n' 'set -g extended-keys on' > /Users/matt/.tmux.conf
+# tmux extended keys (modified Enter etc, for pi's and opencode's TUIs):
+# bookworm's tmux 3.3a only honours xterm modifyOtherKeys (CSI >4;m) as an
+# in-pane request, but these agents negotiate the kitty keyboard protocol
+# (CSI >u), which 3.3a doesn't recognise - so "on" never extended their panes
+# and Shift+Enter arrived as plain CR. "always" delivers extended keys to every
+# pane in kitty CSI u form regardless of how (or whether) the app asked. The
+# extkeys terminal feature gives tmux Eneks/Dseks caps so it also requests
+# extended keys from the OUTER terminal (CSI >4;1m) - required for host muxes
+# like herdr to pass Shift+Enter through to the docker-exec client at all.
+# Container-wide default; users can override with their own ~/.tmux.conf.
+RUN printf '%s\n' \
+      'set -g extended-keys always' \
+      'set -as terminal-features ",*:extkeys"' \
+      > /Users/matt/.tmux.conf
 # Seed the default project-trust store for every fresh pi-agent volume; init
 # merges /opt/workbench/pi-agent/trust.json into pre-existing volumes itself.
 RUN cp /opt/workbench/pi-agent/trust.json /Users/matt/.pi/agent/trust.json

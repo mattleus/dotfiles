@@ -35,6 +35,7 @@
 #     ~/firstmate (code root)         .local/share/mise (per-repo runtimes survive recreation)
 #     ~/.firstmate (FM_HOME: fleet home - state/data/config and projects/ clones)
 #     ~/.treehouse (linked worktrees of the code root and fleet clones)
+#     ~/Documents/agent_reports (agent research/report output, readable on the host)
 # Never mounted or injected: ~/.secrets, ~/.ssh, ~/.config/gh, ~/.docker, ~/.colima,
 # cloud credential stores, browser profiles, any auth.json. docker.sock never mounted.
 #
@@ -227,11 +228,11 @@ resolve_repo() {
   fi
   cand="$(cd -P "$cand" && pwd)"
   case "$cand" in
-    "$HOME/work"/*|"$HOME/repos/github/cohere-ai"/*|"$HOME/repos/github/reliant-ai"/*|"$HOME/firstmate"|"$HOME/firstmate"/*|"$HOME/.firstmate"|"$HOME/.firstmate"/*|"$HOME/.treehouse"|"$HOME/.treehouse"/*)
+    "$HOME/work"/*|"$HOME/repos/github/cohere-ai"/*|"$HOME/repos/github/reliant-ai"/*|"$HOME/firstmate"|"$HOME/firstmate"/*|"$HOME/.firstmate"|"$HOME/.firstmate"/*|"$HOME/.treehouse"|"$HOME/.treehouse"/*|"$HOME/Documents/agent_reports"|"$HOME/Documents/agent_reports"/*)
       ;;
     *)
       die "$cand is outside the mounted set.
-Only ~/work, ~/repos/github/{cohere-ai,reliant-ai}, the firstmate code root (~/firstmate), the fleet home (~/.firstmate), and ~/.treehouse enter the sandbox."
+Only ~/work, ~/repos/github/{cohere-ai,reliant-ai}, the firstmate code root (~/firstmate), the fleet home (~/.firstmate), ~/.treehouse, and ~/Documents/agent_reports enter the sandbox."
       ;;
   esac
   printf '%s' "$cand"
@@ -323,7 +324,7 @@ if [ "$cmd" = "up" ]; then
   # Boundary mounts are real host dirs; create them host-side when missing so
   # docker never auto-creates them root-owned on the share.
   mkdir -p "$HOME/work" "$HOME/repos/github/cohere-ai" "$HOME/repos/github/reliant-ai" \
-    "$HOME/.firstmate" "$HOME/.treehouse"
+    "$HOME/.firstmate" "$HOME/.treehouse" "$HOME/Documents/agent_reports"
   [ -d "$HOME/firstmate" ] \
     || die "firstmate code root missing: $HOME/firstmate (clone firstmate there first; home.nix's cloneFirstmate does it)"
 
@@ -387,6 +388,7 @@ if [ "$cmd" = "up" ]; then
       -v "$HOME/firstmate:$HOME/firstmate" \
       -v "$HOME/.firstmate:$HOME/.firstmate" \
       -v "$HOME/.treehouse:$HOME/.treehouse" \
+      -v "$HOME/Documents/agent_reports:$HOME/Documents/agent_reports" \
       -v workbench-pi-agent:"$box_home/.pi/agent" \
       -v workbench-opencode-data:"$box_home/.local/share/opencode" \
       -v workbench-npm-cache:"$box_home/.cache/npm" \

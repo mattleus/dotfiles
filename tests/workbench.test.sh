@@ -97,7 +97,8 @@ for host_path in '$HOME/work:$HOME/work' \
                  '$HOME/repos/github/reliant-ai:$HOME/repos/github/reliant-ai' \
                  '$HOME/firstmate:$HOME/firstmate' \
                  '$HOME/.firstmate:$HOME/.firstmate' \
-                 '$HOME/.treehouse:$HOME/.treehouse'; do
+                 '$HOME/.treehouse:$HOME/.treehouse' \
+                 '$HOME/Documents/agent_reports:$HOME/Documents/agent_reports'; do
   grep -qF -- "-v \"$host_path\" \\" "$WRAPPER" \
     && pass "wrapper mounts $host_path rw at identical path" \
     || fail "wrapper missing mount $host_path"
