@@ -1,0 +1,72 @@
+#!/bin/sh
+# workbench gh shim: dispatch each github.com gh invocation to the per-owner
+# session token the wrapper injected (GH_TOKEN_{COHERE,RELIANT,PERSONAL}).
+# gh honors a single ambient GH_TOKEN, but the workbench fleet spans several
+# GitHub owners whose repos no one account can all reach, so the token must
+# be chosen per call. Resolution order mirrors gh-axi's repo-context rules:
+#   1. -R/--repo <owner>/<repo> (space, =, or glued shorthand forms)
+#   2. `gh api repos/<owner>/...` endpoint arguments
+#   3. `gh repo view|clone|fork <owner>/<repo>` positional form
+#   4. the cwd's origin remote: https, plain ssh, and the host's per-account
+#      ssh aliases (git@github-{reliant,cohere,personal}:) all resolve
+# Unresolvable invocations (`gh api graphql`, auth commands, ...) keep the
+# ambient GH_TOKEN unchanged. gh-axi and firstmate shell out to plain "gh",
+# so installing this ahead of the real binary on PATH intercepts them all.
+# Keep the owner->token mapping in sync with workbench-gh-cred and the
+# workbench wrapper.
+set -u
+
+real=${WORKBENCH_GH_REAL:-/usr/bin/gh}
+
+# A non-default GitHub host owns its auth story; stay out of the way.
+if [ "${GH_HOST:-github.com}" != "github.com" ]; then
+  exec "$real" "$@"
+fi
+
+owner=""
+prev=""
+for a in "$@"; do
+  case "$prev" in
+    -R|--repo) owner=${a%%/*}; break ;;
+  esac
+  prev=$a
+  case "$a" in
+    --repo=*|-R=*) v=${a#*=}; owner=${v%%/*}; break ;;
+    -R?*) v=${a#-R}; owner=${v%%/*}; break ;;
+    repos/*|/repos/*) v=${a#/}; v=${v#repos/}; owner=${v%%/*}; break ;;
+  esac
+done
+
+if [ -z "$owner" ] && [ "${1:-}" = "repo" ]; then
+  case "${2:-}" in
+    view|clone|fork)
+      case "${3:-}" in
+        */*) owner=${3%%/*} ;;
+      esac
+      ;;
+  esac
+fi
+
+if [ -z "$owner" ]; then
+  url="$(git remote get-url origin 2>/dev/null || true)"
+  case "$url" in
+    git@github-reliant:*)    owner=reliant-ai ;;
+    git@github-cohere:*)     owner=cohere-ai ;;
+    git@github-personal:*)   owner=mattleus ;;
+    git@github.com:*)        v=${url#git@github.com:}; owner=${v%%/*} ;;
+    https://github.com/*)    v=${url#https://github.com/}; owner=${v%%/*} ;;
+    ssh://git@github.com/*)  v=${url#ssh://git@github.com/}; owner=${v%%/*} ;;
+  esac
+fi
+
+tok=""
+case "$(printf '%s' "$owner" | tr '[:upper:]' '[:lower:]')" in
+  cohere-ai)  tok=${GH_TOKEN_COHERE:-} ;;
+  reliant-ai) tok=${GH_TOKEN_RELIANT:-} ;;
+  mattleus)   tok=${GH_TOKEN_PERSONAL:-} ;;
+esac
+if [ -n "$tok" ]; then
+  GH_TOKEN=$tok
+  export GH_TOKEN
+fi
+exec "$real" "$@"

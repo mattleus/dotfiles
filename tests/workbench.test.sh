@@ -266,5 +266,116 @@ grep -q 'models.json' "$BENCH/workbench-init" \
   && pass "init seeds the baked models.dev cache" \
   || fail "init does not seed the models.dev cache"
 
+# --- per-owner GitHub dispatch: static shape --------------------------------------
+# The fleet spans GitHub owners no single account can all reach, so the box
+# dispatches per owner: GH_TOKEN_{COHERE,RELIANT,PERSONAL} injected per session,
+# a gh shim for HTTP/API calls, a credential helper for git transports.
+for script in "$BENCH/bin/gh" "$BENCH/bin/workbench-gh-cred"; do
+  if [ -x "$script" ] && sh -n "$script"; then
+    pass "$(basename "$script") is executable and parses (sh -n)"
+  else
+    fail "$(basename "$script") missing, not executable, or bad syntax"
+  fi
+done
+grep -qF 'COPY --chmod=0755 bin/ /usr/local/bin/' "$BENCH/Dockerfile" \
+  && pass "Dockerfile bakes the dispatch scripts" \
+  || fail "Dockerfile does not bake the dispatch scripts"
+grep -qF 'useHttpPath = true' "$BENCH/Dockerfile" \
+  && pass "gitconfig makes credential queries carry the repo path" \
+  || fail "gitconfig lacks useHttpPath (helper could not see the repo owner)"
+grep -qF 'helper = "!/usr/local/bin/workbench-gh-cred"' "$BENCH/Dockerfile" \
+  && pass "gitconfig routes github.com credentials to workbench-gh-cred" \
+  || fail "gitconfig missing the workbench-gh-cred helper"
+if grep -q 'gh auth git-credential' "$BENCH/Dockerfile"; then
+  fail "baked gitconfig still defers auth to gh's single-token credential helper"
+else
+  pass "gh's single-token credential helper retired from the baked gitconfig"
+fi
+grep -qF 'AcceptEnv COHERE_API_KEY GH_TOKEN GH_TOKEN_COHERE GH_TOKEN_RELIANT GH_TOKEN_PERSONAL' "$BENCH/Dockerfile" \
+  && pass "sshd AcceptEnv accepts every session token name" \
+  || fail "sshd AcceptEnv drop-in missing a GH token name"
+grep -qF 'acct_reliant=matt-reliant' "$WRAPPER" \
+  && pass "wrapper maps Reliant-AI to its host gh account" \
+  || fail "wrapper lost the Reliant-AI account mapping"
+grep -qF 'SendEnv="COHERE_API_KEY GH_TOKEN GH_TOKEN_COHERE GH_TOKEN_RELIANT GH_TOKEN_PERSONAL"' "$WRAPPER" \
+  && pass "ssh sessions forward every GH token name" \
+  || fail "ssh SendEnv does not forward all GH token names"
+grep -qF 'find "$bench_dir/bin"' "$WRAPPER" \
+  && pass "wrapper rebuilds the image when the dispatch scripts change" \
+  || fail "dispatch scripts missing from the image build-hash inputs"
+grep -q 'sandbox-gh-token absent - per-owner dispatch' "$WRAPPER" \
+  && pass "status reports per-owner dispatch readiness" \
+  || fail "status does not report per-owner dispatch"
+
+# --- per-owner GitHub dispatch: behavior ------------------------------------------
+dispatch="$tmp_root/dispatch"
+mkdir -p "$dispatch"
+
+cred_helper="$BENCH/bin/workbench-gh-cred"
+cred_env=(env GH_TOKEN=ambient GH_TOKEN_COHERE=tok-coh GH_TOKEN_RELIANT=tok-rel GH_TOKEN_PERSONAL=tok-per)
+cred_ask() { printf 'protocol=https\nhost=github.com\npath=%s\n\n' "$1" | "${cred_env[@]}" "$cred_helper" get; }
+[ "$(cred_ask Reliant-AI/carrot.git | grep '^password=')" = "password=tok-rel" ] \
+  && pass "cred helper: Reliant-AI path gets the reliant token" \
+  || fail "cred helper picked the wrong token for Reliant-AI"
+[ "$(cred_ask COHERE-AI/infra.git | grep '^password=')" = "password=tok-coh" ] \
+  && pass "cred helper: owner match is case-insensitive (COHERE-AI)" \
+  || fail "cred helper is not case-insensitive on the owner"
+[ "$(cred_ask mattleus/dotfiles.git | grep '^password=')" = "password=tok-per" ] \
+  && pass "cred helper: mattleus path gets the personal token" \
+  || fail "cred helper picked the wrong token for mattleus"
+[ "$(cred_ask otherorg/x.git | grep '^password=')" = "password=ambient" ] \
+  && pass "cred helper: unknown owner falls back to ambient GH_TOKEN" \
+  || fail "cred helper did not fall back to ambient GH_TOKEN"
+[ "$(printf 'protocol=https\nhost=github.com\npath=Reliant-AI/carrot.git\n\n' | env GH_TOKEN=only-pat "$cred_helper" get | grep '^password=')" = "password=only-pat" ] \
+  && pass "cred helper: single-PAT mode (only GH_TOKEN) still works for org repos" \
+  || fail "cred helper broke single-PAT mode"
+[ -z "$(printf 'protocol=https\nhost=example.com\npath=a/b.git\n\n' | "${cred_env[@]}" "$cred_helper" get)" ] \
+  && pass "cred helper: stays silent off github.com" \
+  || fail "cred helper answered a non-github.com query"
+
+shim="$BENCH/bin/gh"
+fake_gh="$dispatch/fake-gh"
+printf '#!/bin/sh\nprintf "GH_TOKEN=%%s\\n" "${GH_TOKEN:-unset}"\n' > "$fake_gh"
+chmod +x "$fake_gh"
+shim_env=(env GH_TOKEN=ambient GH_TOKEN_COHERE=tok-coh GH_TOKEN_RELIANT=tok-rel GH_TOKEN_PERSONAL=tok-per WORKBENCH_GH_REAL="$fake_gh")
+[ "$("${shim_env[@]}" "$shim" pr list -R Reliant-AI/carrot)" = "GH_TOKEN=tok-rel" ] \
+  && pass "gh shim: -R owner/repo dispatches" \
+  || fail "gh shim ignored -R owner/repo"
+[ "$("${shim_env[@]}" "$shim" pr list --repo=cohere-ai/infra)" = "GH_TOKEN=tok-coh" ] \
+  && pass "gh shim: --repo=owner/repo dispatches" \
+  || fail "gh shim ignored --repo=owner/repo"
+[ "$("${shim_env[@]}" "$shim" api repos/Reliant-AI/carrot/pulls)" = "GH_TOKEN=tok-rel" ] \
+  && pass "gh shim: api repos/<owner>/... endpoint dispatches" \
+  || fail "gh shim ignored an api endpoint owner"
+[ "$("${shim_env[@]}" "$shim" repo view Reliant-AI/carrot)" = "GH_TOKEN=tok-rel" ] \
+  && pass "gh shim: repo view positional dispatches" \
+  || fail "gh shim ignored the repo view positional"
+[ "$(cd "$dispatch" && "${shim_env[@]}" "$shim" pr merge --match-head-commit abc 12)" = "GH_TOKEN=ambient" ] \
+  && pass "gh shim: no repo context keeps the ambient GH_TOKEN" \
+  || fail "gh shim clobbered the ambient GH_TOKEN"
+[ "$(env "${shim_env[@]:1}" GH_HOST=ghe.example.com "$shim" api repos/Reliant-AI/carrot)" = "GH_TOKEN=ambient" ] \
+  && pass "gh shim: non-default GH_HOST is left alone" \
+  || fail "gh shim dispatched a non-github.com host"
+[ "$(env GH_TOKEN=ambient GH_TOKEN_COHERE=tok-coh WORKBENCH_GH_REAL="$fake_gh" "$shim" pr list -R Reliant-AI/carrot)" = "GH_TOKEN=ambient" ] \
+  && pass "gh shim: missing dispatch var keeps ambient (no empty clobber)" \
+  || fail "gh shim exported an empty token over the ambient one"
+
+probe_repo="$dispatch/probe"
+dotfiles_git_init_commit "$probe_repo"
+git -C "$probe_repo" remote set-url origin git@github-reliant:Reliant-AI/carrot.git 2>/dev/null \
+  || git -C "$probe_repo" remote add origin git@github-reliant:Reliant-AI/carrot.git
+out="$(cd "$probe_repo" && "${shim_env[@]}" "$shim" pr list)"
+[ "$out" = "GH_TOKEN=tok-rel" ] \
+  && pass "gh shim: cwd origin probing resolves the github-reliant ssh alias" \
+  || fail "gh shim could not dispatch from the cwd origin (alias form), got: $out"
+git -C "$probe_repo" remote set-url origin https://github.com/cohere-ai/infra.git
+[ "$(cd "$probe_repo" && "${shim_env[@]}" "$shim" pr list)" = "GH_TOKEN=tok-coh" ] \
+  && pass "gh shim: cwd origin probing resolves plain https remotes" \
+  || fail "gh shim could not dispatch from the cwd origin (https form)"
+git -C "$probe_repo" remote set-url origin git@github.com:mattleus/dotfiles.git
+[ "$(cd "$probe_repo" && "${shim_env[@]}" "$shim" pr list)" = "GH_TOKEN=tok-per" ] \
+  && pass "gh shim: cwd origin probing resolves plain ssh remotes" \
+  || fail "gh shim could not dispatch from the cwd origin (git@github.com form)"
+
 dotfiles_test_cleanup
 echo "workbench tests: all passed"

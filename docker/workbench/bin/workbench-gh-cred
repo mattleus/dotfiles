@@ -1,0 +1,37 @@
+#!/bin/sh
+# workbench-gh-cred: git credential helper for the workbench sandbox.
+# Answers github.com credential queries with the per-owner session token the
+# wrapper injected (GH_TOKEN_{COHERE,RELIANT,PERSONAL}), so every GitHub owner
+# the fleet spans authenticates as its own account even though a process can
+# carry only one ambient GH_TOKEN. Baked into the image's /etc/gitconfig with
+# credential.useHttpPath=true, so the query always carries the repo path.
+# Unanswered cases fall through (a non-get operation, a non-github.com query,
+# or no token at all) so git moves on; the ambient GH_TOKEN is the default for
+# owners without a dedicated dispatch var, which also keeps single-PAT mode
+# (only GH_TOKEN injected) working unchanged. Keep this owner->token mapping
+# in sync with the gh shim (/usr/local/bin/gh) and the workbench wrapper.
+set -eu
+
+[ "${1:-}" = "get" ] || exit 0
+
+protocol=""; host=""; path=""
+while IFS='=' read -r k v; do
+  case "$k" in
+    protocol) protocol=$v ;;
+    host)     host=$v ;;
+    path)     path=$v ;;
+  esac
+done
+
+[ "$protocol" = "https" ] && [ "$host" = "github.com" ] || exit 0
+
+owner="$(printf '%s' "${path%%/*}" | tr '[:upper:]' '[:lower:]')"
+tok=""
+case "$owner" in
+  cohere-ai)  tok=${GH_TOKEN_COHERE:-} ;;
+  reliant-ai) tok=${GH_TOKEN_RELIANT:-} ;;
+  mattleus)   tok=${GH_TOKEN_PERSONAL:-} ;;
+esac
+[ -n "$tok" ] || tok=${GH_TOKEN:-}
+[ -n "$tok" ] || exit 0
+printf 'username=x-access-token\npassword=%s\n\n' "$tok"

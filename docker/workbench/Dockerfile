@@ -146,8 +146,11 @@ RUN printf '%s\n' \
 COPY git-template /usr/local/share/workbench/git-template
 
 # System git policy, root-owned: ssh-style and host ssh-alias remotes rewrite
-# to HTTPS (no host ssh keys in the sandbox; GH_TOKEN + gh's credential helper
-# authenticate pushes). A per-session GH_TOKEN is injected by the wrapper.
+# to HTTPS (no host ssh keys in the sandbox). Auth is per-owner: the wrapper
+# injects GH_TOKEN_{COHERE,RELIANT,PERSONAL} per session, useHttpPath makes
+# every credential query carry the repo path, and workbench-gh-cred answers
+# with the matching owner's token (ambient GH_TOKEN as default, which also
+# keeps single-PAT mode working).
 RUN printf '%s\n' \
       '[init]' \
       '	templateDir = /usr/local/share/workbench/git-template' \
@@ -157,16 +160,23 @@ RUN printf '%s\n' \
       '	insteadOf = git@github-cohere:' \
       '	insteadOf = git@github-personal:' \
       '	insteadOf = git@github-reliant:' \
+      '[credential]' \
+      '	useHttpPath = true' \
       '[credential "https://github.com"]' \
-      '	helper = "!/usr/bin/gh auth git-credential"' \
+      '	helper = "!/usr/local/bin/workbench-gh-cred"' \
       > /etc/gitconfig
+
+# Per-owner GitHub dispatch: the gh shim shadows /usr/bin/gh via PATH order
+# (firstmate and gh-axi both shell out to plain "gh"), workbench-gh-cred is
+# the git credential helper named above. Same owner->token map in both.
+COPY --chmod=0755 bin/ /usr/local/bin/
 
 # sshd: the wrapper injects secrets per session over ssh (SetEnv on the client,
 # accepted here), keeping the container-wide environment secret-free
 # (docker inspect shows nothing; docker rm ends a value's life).
 RUN printf '%s\n' \
       '# workbench: per-session secret injection over ssh (see workbench wrapper)' \
-      'AcceptEnv COHERE_API_KEY GH_TOKEN' \
+      'AcceptEnv COHERE_API_KEY GH_TOKEN GH_TOKEN_COHERE GH_TOKEN_RELIANT GH_TOKEN_PERSONAL' \
       > /etc/ssh/sshd_config.d/workbench.conf
 
 # pi npm/git packages declared in the baked settings.json, pre-installed at

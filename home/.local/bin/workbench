@@ -11,7 +11,7 @@
 #                                   gives session persistence - start the fleet here)
 #   workbench herdr [args]          ssh straight into herdr inside the sandbox; pi/opencode
 #                                   launched from it inherit the injected session secrets
-#   workbench pi [repo] [args]      inject COHERE_API_KEY (+ GH_TOKEN) per-exec, open pi
+#   workbench pi [repo] [args]      inject COHERE_API_KEY (+ GH tokens) per-exec, open pi
 #                                   in a tmux session cd'd to the bind-mounted repo.
 #                                   pi exits into a zsh at the repo; exit/C-d returns
 #                                   to the host, C-b d detaches while pi keeps running.
@@ -39,9 +39,13 @@
 # Never mounted or injected: ~/.secrets, ~/.ssh, ~/.config/gh, ~/.docker, ~/.colima,
 # cloud credential stores, browser profiles, any auth.json. docker.sock never mounted.
 #
-# Secrets: COHERE_API_KEY resolves from the keychain (sandox gh token too) or
-# dotfiles home/env.local (authoritative when present - reconciled into the
-# keychain on `up`). The wrapper injects them per session via `docker exec -e` /
+# Secrets: COHERE_API_KEY resolves from the keychain or dotfiles home/env.local
+# (authoritative when present - reconciled into the keychain on `up`). GitHub
+# auth: a sandbox-gh-token keychain PAT when present (single GH_TOKEN), else one
+# token per host gh account injected as GH_TOKEN_{COHERE,RELIANT,PERSONAL} and
+# dispatched per repo owner inside the box by the baked gh shim + git credential
+# helper - the fleet spans GitHub owners that no single account/token can all
+# reach. The wrapper injects everything per session via `docker exec -e` /
 # ssh SetEnv, so the container-wide environment stays secret-free (docker
 # inspect shows nothing) and the values die with the session's process tree.
 # Always enter via this wrapper: a tmux server started another way won't carry
@@ -125,25 +129,15 @@ sandbox_gh_pat() {
   security find-generic-password -s sandbox-gh-token -a "$me" -w 2>/dev/null
 }
 
-# GH token for a session: dedicated fine-grained PAT from the keychain when it
-# exists (preferred), else the token of the gh account matching the tree the
-# session runs in (same account-to-directory mapping as the host's gh autoswitch).
-gh_token_for() {
-  local phys="${1:-}" tok user=""
-  if tok="$(sandbox_gh_pat)" && [ -n "$tok" ]; then
-    printf '%s' "$tok"
-    return 0
-  fi
-  case "$phys" in
-    */cohere-ai/*) user=mattleus-cohere ;;
-    */reliant-ai/*) user=matt-reliant ;;
-  esac
-  if [ -n "$user" ]; then
-    gh auth token --user "$user" 2>/dev/null || true
-  else
-    gh auth token 2>/dev/null || true
-  fi
-}
+# The github.com accounts the estate spans (host `gh` logins), one token per
+# owner - no single account can reach every org the fleet works across.
+# Keep this mapping in sync with home.nix's gh autoswitch directory mapping
+# and the owner->token mapping in docker/workbench/bin/{gh,workbench-gh-cred}.
+acct_cohere=mattleus-cohere
+acct_reliant=matt-reliant
+acct_personal=mattleus
+
+acct_token() { gh auth token --user "$1" 2>/dev/null || true; }
 
 # First-use bridge: `up` reconciles the store - no keychain entry but an
 # env.local value: copy it into the keychain (one store for all sessions; a
@@ -184,20 +178,37 @@ ensure_cohere_key() {
 
 # --- session environment plumbing ----------------------------------------------
 
-# Export COHERE_API_KEY (+ GH_TOKEN when resolvable) into this script's own
+# Export COHERE_API_KEY and the session's GitHub auth into this script's own
 # environment (host-side only) so that `docker exec -e VAR` / ssh SendEnv
-# forward them by NAME - values never appear on any command line.
+# forward them by NAME - values never appear on any command line. GitHub auth:
+# sandbox-gh-token PAT when present (single GH_TOKEN for everything), else
+# per-owner dispatch - the three account tokens plus the personal account as
+# the ambient GH_TOKEN default for owners without a dedicated var. A missing
+# host login warns: that owner's repos would 404 in every in-sandbox call.
 load_session_secrets() {
   ensure_cohere_key || return 1
   COHERE_API_KEY="$(cohere_key)"
   export COHERE_API_KEY
-  local gt
-  gt="$(gh_token_for "${1:-}")"
-  if [ -n "$gt" ]; then
-    GH_TOKEN="$gt"
+  local t
+  if t="$(sandbox_gh_pat)" && [ -n "$t" ]; then
+    GH_TOKEN="$t"
     export GH_TOKEN
-  else
-    unset GH_TOKEN 2>/dev/null || true
+    unset GH_TOKEN_COHERE GH_TOKEN_RELIANT GH_TOKEN_PERSONAL
+    return 0
+  fi
+  GH_TOKEN_COHERE="$(acct_token "$acct_cohere")"
+  GH_TOKEN_RELIANT="$(acct_token "$acct_reliant")"
+  GH_TOKEN_PERSONAL="$(acct_token "$acct_personal")"
+  export GH_TOKEN_COHERE GH_TOKEN_RELIANT GH_TOKEN_PERSONAL
+  GH_TOKEN="${GH_TOKEN_PERSONAL:-${GH_TOKEN_COHERE:-${GH_TOKEN_RELIANT:-}}}"
+  if [ -n "$GH_TOKEN" ]; then export GH_TOKEN; else unset GH_TOKEN; fi
+  local missing=""
+  [ -n "$GH_TOKEN_COHERE" ]   || missing="$missing cohere-ai($acct_cohere)"
+  [ -n "$GH_TOKEN_RELIANT" ]  || missing="$missing Reliant-AI($acct_reliant)"
+  [ -n "$GH_TOKEN_PERSONAL" ] || missing="$missing mattleus($acct_personal)"
+  if [ -n "$missing" ]; then
+    echo "workbench: WARNING - no host gh login for:$missing" >&2
+    echo "  that owner's repos will 404 inside the sandbox until you: gh auth login (host)" >&2
   fi
 }
 
@@ -310,9 +321,17 @@ if [ "$cmd" = "status" ]; then
     echo "  security add-generic-password -s COHERE_API_KEY -a $me -w \"<key>\")"
   fi
   if sandbox_gh_pat >/dev/null; then
-    echo "keychain:  sandbox-gh-token present (dedicated PAT)"
+    echo "keychain:  sandbox-gh-token present (dedicated PAT: single GH_TOKEN for all owners)"
   else
-    echo "keychain:  sandbox-gh-token absent (git falls back to host gh account token)"
+    echo "keychain:  sandbox-gh-token absent - per-owner dispatch from host gh accounts:"
+    for pair in "cohere-ai:$acct_cohere" "Reliant-AI:$acct_reliant" "mattleus:$acct_personal"; do
+      org="${pair%%:*}"; acct="${pair#*:}"
+      if [ -n "$(acct_token "$acct")" ]; then
+        echo "  $org -> $acct: token OK"
+      else
+        echo "  $org -> $acct: NO TOKEN (its repos will 404 in-sandbox; run on the host: gh auth login --user $acct)"
+      fi
+    done
   fi
   exit 0
 fi
@@ -353,6 +372,7 @@ if [ "$cmd" = "up" ]; then
         "$bench_dir/config/opencode/opencode.jsonc" \
         "$bench_dir/git-template/hooks/pre-push" ;
       find "$bench_dir/config/pi-agent" -type f ! -name .DS_Store | sort | xargs shasum -a 256 ;
+      find "$bench_dir/bin" -type f ! -name .DS_Store | sort | xargs shasum -a 256 ;
     } | shasum -a 256 | awk '{print $1}'
   )"
   have_hash="$(docker image inspect "$image" \
@@ -408,8 +428,8 @@ if [ "$cmd" = "up" ]; then
      && rm /tmp/workbench-authorized_keys"
 
   # Git identity: reuse the host's global one (host per-directory email
-  # overrides don't exist in the sandbox; direct sessions push over HTTPS with
-  # the session GH_TOKEN regardless).
+  # overrides don't exist in the sandbox; pushes authenticate over HTTPS with
+  # the per-owner session tokens regardless).
   git_name="$(git config --global --get user.name 2>/dev/null || true)"
   git_email="$(git config --global --get user.email 2>/dev/null || true)"
   if [ -n "$git_name" ]; then
@@ -477,19 +497,19 @@ fi
 
 if [ "$cmd" = "ssh" ]; then
   need_container_running
-  load_session_secrets "" || exit 1
+  load_session_secrets || exit 1
   # SendEnv forwards the exported vars by name (sshd AcceptEnv workbench.conf);
   # values never appear on the ssh command line.
-  exec ssh "${ssh_args[@]}" -o SendEnv="COHERE_API_KEY GH_TOKEN" agent@127.0.0.1 "$@"
+  exec ssh "${ssh_args[@]}" -o SendEnv="COHERE_API_KEY GH_TOKEN GH_TOKEN_COHERE GH_TOKEN_RELIANT GH_TOKEN_PERSONAL" agent@127.0.0.1 "$@"
 fi
 
 # --- herdr -------------------------------------------------------------------
 
 if [ "$cmd" = "herdr" ]; then
   need_container_running
-  load_session_secrets "" || exit 1
+  load_session_secrets || exit 1
   printf -v remote_cmd '%q ' herdr "$@"
-  exec ssh "${ssh_args[@]}" -o SendEnv="COHERE_API_KEY GH_TOKEN" -t agent@127.0.0.1 "$remote_cmd"
+  exec ssh "${ssh_args[@]}" -o SendEnv="COHERE_API_KEY GH_TOKEN GH_TOKEN_COHERE GH_TOKEN_RELIANT GH_TOKEN_PERSONAL" -t agent@127.0.0.1 "$remote_cmd"
 fi
 
 # --- pi / pi-review / opencode --------------------------------------------------
@@ -506,7 +526,7 @@ need_container_running
 phys="$(resolve_repo "${1:-}")"
 shift || true
 warn_if_dirty "$phys"
-load_session_secrets "$phys" || exit 1
+load_session_secrets || exit 1
 
 session_tag="$(basename "$phys" | tr -c '[:alnum:]._-' '-')"
 # Sessions are per tool+repo+host pane: two panes pointed at the same repo each
@@ -520,9 +540,9 @@ pane_key="$(printf '%s' "${HERDR_PANE_ID:-${TMUX_PANE:-$$}}" | tr -c '[:alnum:].
 session="$cmd-$session_tag-$pane_key"
 
 env_args=(-e COHERE_API_KEY -e "TERM=${TERM:-xterm-256color}" -e WORKBENCH_SESSION="$session")
-if [ -n "${GH_TOKEN:-}" ]; then
-  env_args+=(-e GH_TOKEN)
-fi
+for v in GH_TOKEN GH_TOKEN_COHERE GH_TOKEN_RELIANT GH_TOKEN_PERSONAL; do
+  [ -n "${!v:-}" ] && env_args+=(-e "$v")
+done
 
 # Open (or attach) the pane's tmux session (named tool-repo-pane), cd'd to the repo. The
 # agent runs inside a zsh pane (via send-keys), NOT as the session command:
