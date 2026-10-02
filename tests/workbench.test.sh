@@ -43,30 +43,53 @@ else
   pass "pi models.json apiKey values are env references only"
 fi
 
-# --- baked opencode config: parses, carries the sandbox permission block --------
+# --- baked opencode config: parses, carries the sandbox guardrails (v2 schema) ---
 oc_parse="$(node -e "
   const src = require('fs').readFileSync('$BENCH/config/opencode/opencode.jsonc', 'utf8');
   // JSONC subset used here is a JS object literal; evaluates without executing code.
   const o = (new Function('return (' + src + ')'))();
-  console.log(JSON.stringify({permission: o.permission, providers: Object.keys(o.provider || {}), autoupdate: o.autoupdate}));
+  console.log(JSON.stringify({permissions: o.permissions, providers: Object.keys(o.providers || {}), update: o.update}));
 " 2>/dev/null)"
 [ -n "$oc_parse" ] \
   && pass "opencode.jsonc parses (JSONC literal)" \
   || fail "opencode.jsonc parse"
 
-for needle in '"git push --force*":"deny"' '"doom_loop":"ask"' '"external_directory":"ask"' '"websearch":"deny"' '"autoupdate":false' '"oss-model-vault-v2"' '"cohere-oss"'; do
+for needle in \
+  '{"action":"shell","resource":"git push --force*","effect":"deny"}' \
+  '{"action":"shell","resource":"git push -f*","effect":"deny"}' \
+  '{"action":"external_directory","resource":"*","effect":"ask"}' \
+  '{"action":"websearch","resource":"*","effect":"deny"}' \
+  '"update":"disable"' \
+  '"oss-model-vault-v2"' \
+  '"cohere-oss"'; do
   case "$oc_parse" in
     *"$needle"*) pass "opencode.jsonc carries $needle" ;;
     *) fail "opencode.jsonc missing $needle" ;;
   esac
 done
 case "$oc_parse" in
-  *'"*.env":"deny"'*) pass "opencode.jsonc carries the .env read-deny (restated default)" ;;
+  *'{"action":"read","resource":"*.env","effect":"deny"}'*) pass "opencode.jsonc carries the .env read-deny" ;;
   *) fail "opencode.jsonc missing the .env read-deny" ;;
 esac
+dl="$(node -e "
+  for (const f of ['$BENCH/config/opencode/opencode.jsonc','$ROOT/home/.config/opencode/opencode.jsonc']) {
+    const o = (new Function('return (' + require('fs').readFileSync(f,'utf8') + ')'))();
+    (o.permissions||[]).forEach(r => console.log(r.action));
+  }
+")"
+case "$dl" in
+  *doom_loop*) fail "doom_loop rule lingers (not a v2 permission action)" ;;
+  *) pass "no doom_loop rule survives (not a v2 permission action)" ;;
+esac
+grep -q 'opencode.ai/v2/install' "$ROOT/home.nix" \
+  && pass "host opencode install tracks the v2 channel" \
+  || fail "host opencode install not on the v2 channel"
+grep -qF "grep -Eq '(^| )v?2\.'" "$ROOT/home.nix" \
+  && pass "installOpenCode also reinstalls over a v1 binary" \
+  || fail "installOpenCode lacks the v1-present guard"
 
 # --- Dockerfile pins stay sha256-gated ------------------------------------------
-for pin in "herdr.*v0.8.0" "treehouse-v2.1.1" "no-mistakes-v1.72.0" "mise-v2026.9.10" "pi-coding-agent@0.85.1" "opencode-ai@1.18.31" "tasks-axi@0.2.5" "gh-axi@0.1.30" "chrome-devtools-axi@0.1.29" "quota-axi@0.1.43" "lavish-axi@0.1.50" "node:24-bookworm-slim" "fd-find" "extended-keys"; do
+for pin in "herdr.*v0.8.0" "treehouse-v2.1.1" "no-mistakes-v1.72.0" "mise-v2026.9.10" "pi-coding-agent@0.85.1" "@opencode/cli@2.0.16" "tasks-axi@0.2.5" "gh-axi@0.1.30" "chrome-devtools-axi@0.1.29" "quota-axi@0.1.43" "lavish-axi@0.1.50" "node:24-bookworm-slim" "fd-find" "extended-keys"; do
   grep -q "$pin" "$BENCH/Dockerfile" \
     && pass "Dockerfile pins $pin" \
     || fail "Dockerfile missing pin $pin"
@@ -77,11 +100,16 @@ sha_count="$(grep -c 'SHA256=\|_SHA=' "$BENCH/Dockerfile")"
   || fail "Dockerfile sha256 gates too few ($sha_count)"
 
 # --- hygiene env: Dockerfile ENV and init .zshenv stay in sync -------------------
-for var in PI_SKIP_VERSION_CHECK PI_OFFLINE PI_TELEMETRY OPENCODE_DISABLE_AUTOUPDATE OPENCODE_DISABLE_LSP_DOWNLOAD GIT_TERMINAL_PROMPT FM_HOME NPM_CONFIG_CACHE; do
+for var in PI_SKIP_VERSION_CHECK PI_OFFLINE PI_TELEMETRY OPENCODE_DISABLE_AUTOUPDATE OPENCODE_MODELS_PATH GIT_TERMINAL_PROMPT FM_HOME NPM_CONFIG_CACHE; do
   grep -q "$var" "$BENCH/Dockerfile" && grep -q "$var" "$BENCH/workbench-init" \
     && pass "$var in both Dockerfile ENV and init zshenv" \
     || fail "$var drifted between Dockerfile and init"
 done
+if grep -q 'OPENCODE_DISABLE_LSP_DOWNLOAD=' "$BENCH/Dockerfile" "$BENCH/workbench-init"; then
+  fail "OPENCODE_DISABLE_LSP_DOWNLOAD lingers (removed from opencode in v2)"
+else
+  pass "OPENCODE_DISABLE_LSP_DOWNLOAD fully dropped (gone in opencode v2)"
+fi
 grep -q 'AcceptEnv COHERE_API_KEY GH_TOKEN' "$BENCH/Dockerfile" \
   && pass "sshd AcceptEnv drop-in baked" \
   || fail "sshd AcceptEnv drop-in missing"
@@ -258,13 +286,19 @@ grep -qF '[ "$PWD" = "$HOME" ] && cd "$FM_HOME"' "$BENCH/Dockerfile" \
   && pass "zprofile fleet-home landing only fires from HOME" \
   || fail "zprofile teleports repo panes into FM_HOME"
 
-# --- baked models.dev cache fallback (spec 7: network + baked-cache) ---------------
+# --- baked models.dev catalog: pinned at build, read via OPENCODE_MODELS_PATH ------
 grep -q 'models.dev/api.json' "$BENCH/Dockerfile" \
   && pass "Dockerfile bakes the models.dev catalog" \
-  || fail "models.dev baked cache missing from Dockerfile"
-grep -q 'models.json' "$BENCH/workbench-init" \
-  && pass "init seeds the baked models.dev cache" \
-  || fail "init does not seed the models.dev cache"
+  || fail "models.dev baked catalog missing from Dockerfile"
+grep -qF 'OPENCODE_MODELS_PATH=/opt/workbench/opencode/models.json' "$BENCH/Dockerfile" \
+  && grep -qF 'OPENCODE_MODELS_PATH=/opt/workbench/opencode/models.json' "$BENCH/workbench-init" \
+  && pass "sessions read the baked catalog via OPENCODE_MODELS_PATH" \
+  || fail "OPENCODE_MODELS_PATH not wired through Dockerfile ENV + init zshenv"
+if grep -q '.cache/opencode/models.json' "$BENCH/workbench-init"; then
+  fail "init still seeds a ~/.cache copy (v2 reads OPENCODE_MODELS_PATH)"
+else
+  pass "no stale ~/.cache models.json seeding"
+fi
 
 # --- per-owner GitHub dispatch: static shape --------------------------------------
 # The fleet spans GitHub owners no single account can all reach, so the box

@@ -1,80 +1,91 @@
-// Baked workbench opencode config (sandbox spec v1). Body mirrors the host's
-// dotfiles-authored ~/.config/opencode/opencode.jsonc (providers resolve
-// {env:COHERE_API_KEY} - secret-free by construction); the differences are the
-// sandbox additions called out below. Seeded into place by workbench-init only
-// when absent; runtime changes survive until the container is recreated, which
-// is the point: agent guardrail config must reset with the container.
+// Baked workbench opencode config (sandbox spec, opencode v2 schema). Body
+// mirrors the host's dotfiles-authored ~/.config/opencode/opencode.jsonc
+// (providers resolve {env:COHERE_API_KEY} - secret-free by construction); the
+// differences are the sandbox additions called out below. Seeded into place
+// by workbench-init only when absent; runtime changes survive until the
+// container is recreated, which is the point: agent guardrail config must
+// reset with the container.
 {
   "$schema": "https://opencode.ai/config.json",
   "share": "disabled",
-  "autoshare": false,
-  // Sandbox: the image pins opencode; in-app self-update would fight the pin.
-  "autoupdate": false,
+  // Sandbox: the image pins opencode; self-update would fight the pin.
+  "update": "disable",
   "model": "oss-model-vault-v2/kimi-k3-gb200",
 
-  // Sandbox additions (guardrails baked at the image layer): everything here is
-  // either a documented default restated so it can never be silently lost
-  // (.env read-deny, external_directory: ask, doom_loop: ask), an enforceable
-  // reflex deny applied pre-tool-call even under --auto (git push --force), or
-  // a blanket whole-tool deny removing dead surface (websearch - no search
-  // provider is configured in the sandbox). Enforceable against the model, but
-  // pattern-matched on tool inputs: the container boundary - not these rules -
-  // is what bounds indirection through bash.
-  "permission": {
-    "read": {
-      "*": "allow",
-      "*.env": "deny",
-      "*.env.*": "deny",
-      "*.env.example": "allow"
-    },
-    "external_directory": "ask",
-    "doom_loop": "ask",
-    "bash": {
-      "*": "allow",
-      "git push --force*": "deny",
-      "git push -f*": "deny"
-    },
-    "websearch": "deny"
-  },
+  // Sandbox additions (guardrails baked at the image layer). v2 permissions
+  // are an ordered array; the last matching rule wins and these appended rules
+  // follow opencode's base policy (allow everything; ask on external dirs and
+  // .env reads). Everything here is either a default restated so it can never
+  // be silently lost (.env deny tightened from the base ask, external_directory
+  // ask), an enforceable reflex deny applied pre-tool-call even under --auto
+  // (git push --force), or a blanket whole-action deny removing dead surface
+  // (websearch - no search provider is configured in the sandbox). Enforceable
+  // against the model, but pattern-matched on tool inputs: the container
+  // boundary - not these rules - is what bounds indirection through bash.
+  // (v1's doom_loop rule was dropped on migration: not a v2 action.)
+  "permissions": [
+    { "action": "read", "resource": "*.env", "effect": "deny" },
+    { "action": "read", "resource": "*.env.*", "effect": "deny" },
+    { "action": "read", "resource": "*.env.example", "effect": "allow" },
+    { "action": "external_directory", "resource": "*", "effect": "ask" },
+    { "action": "shell", "resource": "git push --force*", "effect": "deny" },
+    { "action": "shell", "resource": "git push -f*", "effect": "deny" },
+    { "action": "websearch", "resource": "*", "effect": "deny" }
+  ],
 
-  "provider": {
+  "providers": {
     "cohere-oss": {
-      "npm": "@ai-sdk/openai-compatible",
       "name": "Cohere OSS",
-      "options": {
+      "package": "@opencode/ai/providers/openai-compatible",
+      "env": ["COHERE_API_KEY"],
+      "settings": {
         "baseURL": "https://api.oss-models-d8hv27.cloud.cohere.com/compatibility/v1/",
         "apiKey": "{env:COHERE_API_KEY}"
       },
       "models": {
         "glm-5-2-nvfp4": {
           "name": "GLM-5.2 (NVFP4)",
+          "compatibility": {
+            "reasoningField": "reasoning_content"
+          },
+          "capabilities": {
+            "tools": true,
+            "input": ["text"],
+            "output": ["text"]
+          },
           "limit": {
             "context": 320000,
             "output": 57680
           },
-          "interleaved": {
-            "field": "reasoning_content"
-          },
           "cost": {
             "input": 1.4,
-            "cache_read": 0.26,
-            "output": 4.4
+            "output": 4.4,
+            "cache": {
+              "read": 0.26
+            }
           }
         },
 
         "deepseek-v4-flash-0731": {
           "name": "DeepSeek V4 Flash 0731",
+          "compatibility": {
+            "reasoningField": "reasoning_content"
+          },
+          "capabilities": {
+            "tools": true,
+            "input": ["text"],
+            "output": ["text"]
+          },
           "limit": {
             "context": 1048576,
             "output": 32768
           },
           "cost": {
             "input": 0.14,
-            "cache_read": 0.0028,
-            "output": 0.28
-          },
-          "interleaved": {
-            "field": "reasoning_content"
+            "output": 0.28,
+            "cache": {
+              "read": 0.0028
+            }
           }
         }
       }
@@ -83,9 +94,9 @@
     // cohere-llm-gateway (tailnet) is unreachable from the sandbox - recorded
     // v1 limitation in the spec; left in config at host parity, never default.
     "cohere-llm-gateway": {
-      "npm": "@ai-sdk/anthropic",
       "name": "LLM Gateway",
-      "options": {
+      "package": "@opencode/ai/providers/anthropic",
+      "settings": {
         "baseURL": "https://llm-gateway-acp-prod.tail5566.ts.net/v1",
         "apiKey": "dummy"
       },
@@ -100,19 +111,23 @@
     },
 
     "oss-model-vault-v2": {
-      "npm": "@ai-sdk/openai-compatible",
       "name": "OSS Model Vault (V2)",
-      "options": {
+      "package": "@opencode/ai/providers/openai-compatible",
+      "env": ["COHERE_API_KEY"],
+      "settings": {
         "baseURL": "https://api.oss-models-5kszmt.cloud.cohere.com/v1",
         "apiKey": "{env:COHERE_API_KEY}"
       },
       "models": {
         "kimi-k3-gb200": {
           "name": "Kimi K3",
-          "reasoning": true,
-          "tool_call": true,
-          "interleaved": {
-            "field": "reasoning_content"
+          "compatibility": {
+            "reasoningField": "reasoning_content"
+          },
+          "capabilities": {
+            "tools": true,
+            "input": ["text"],
+            "output": ["text"]
           },
           // Total context length is 1,000,000. Use the same 90%/10% split as
           // the other vault model.
@@ -123,7 +138,11 @@
         },
         "glm-5-3-flash": {
           "name": "GLM-5.3 Flash",
-          "modalities": {
+          "compatibility": {
+            "reasoningField": "reasoning_content"
+          },
+          "capabilities": {
+            "tools": true,
             "input": ["text", "image"],
             "output": ["text"]
           },
@@ -133,11 +152,10 @@
           },
           "cost": {
             "input": 0.15,
-            "cache_read": 0.03,
-            "output": 0.5
-          },
-          "interleaved": {
-            "field": "reasoning_content"
+            "output": 0.5,
+            "cache": {
+              "read": 0.03
+            }
           }
         }
       }

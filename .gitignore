@@ -36,3 +36,6 @@ result-*
 # opencode skills are installed at runtime by the skills CLI (see installMattPocockSkills
 # in home.nix) into ~/.config/opencode, which symlinks into this repo - never commit them.
 /home/.config/opencode/skills/
+# opencode v2 writes its background-service pairing password beside the config (same
+# symlink target) - a runtime secret that must never be committed.
+/home/.config/opencode/service.json

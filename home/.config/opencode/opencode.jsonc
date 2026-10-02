@@ -1,64 +1,87 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "share": "disabled",
-  "autoshare": false,
-  "autoupdate": true,
+  // v2: update replaces v1's autoupdate - "auto" installs updates,
+  // "notify" only says one exists, "disable" skips checks.
+  "update": "auto",
   "model": "oss-model-vault-v2/kimi-k3-gb200",
-  "provider": {
+  "providers": {
     "cohere-oss": {
-      "npm": "@ai-sdk/openai-compatible",
       "name": "Cohere OSS",
-      "options": {
+      "package": "@opencode/ai/providers/openai-compatible",
+      "env": ["COHERE_API_KEY"],
+      "settings": {
         "baseURL": "https://api.oss-models-d8hv27.cloud.cohere.com/compatibility/v1/",
         "apiKey": "{env:COHERE_API_KEY}"
       },
       "models": {
         "glm-5-2-nvfp4": {
           "name": "GLM-5.2 (NVFP4)",
+          "compatibility": {
+            "reasoningField": "reasoning_content"
+          },
+          "capabilities": {
+            "tools": true,
+            "input": ["text"],
+            "output": ["text"]
+          },
           "limit": {
             "context": 320000,
             "output": 57680
           },
-          "interleaved": {
-            "field": "reasoning_content"
-          },
           "cost": {
             "input": 1.4,
-            "cache_read": 0.26,
-            "output": 4.4
+            "output": 4.4,
+            "cache": {
+              "read": 0.26
+            }
           }
         },
 
         // GLM-5.2 FP8 is also available.
         // "glm-5-2-fp8": {
         //   "name": "GLM-5.2 (FP8)",
+        //   "compatibility": {
+        //     "reasoningField": "reasoning_content"
+        //   },
+        //   "capabilities": {
+        //     "tools": true,
+        //     "input": ["text"],
+        //     "output": ["text"]
+        //   },
         //   "limit": {
         //     "context": 270000,
         //     "output": 57680
         //   },
-        //   "interleaved": {
-        //     "field": "reasoning_content"
-        //   },
         //   "cost": {
         //     "input": 1.4,
-        //     "cache_read": 0.26,
-        //     "output": 4.4
+        //     "output": 4.4,
+        //     "cache": {
+        //       "read": 0.26
+        //     }
         //   }
         // },
 
         "deepseek-v4-flash-0731": {
           "name": "DeepSeek V4 Flash 0731",
+          "compatibility": {
+            "reasoningField": "reasoning_content"
+          },
+          "capabilities": {
+            "tools": true,
+            "input": ["text"],
+            "output": ["text"]
+          },
           "limit": {
             "context": 1048576,
             "output": 32768
           },
           "cost": {
             "input": 0.14,
-            "cache_read": 0.0028,
-            "output": 0.28
-		      },
-          "interleaved": {
-            "field": "reasoning_content"
+            "output": 0.28,
+            "cache": {
+              "read": 0.0028
+            }
           }
         }
       }
@@ -68,9 +91,9 @@
     // "cohere-staging": { ... },
     // "cohere": { ... }
     "cohere-llm-gateway": {
-      "npm": "@ai-sdk/anthropic",
       "name": "LLM Gateway",
-      "options": {
+      "package": "@opencode/ai/providers/anthropic",
+      "settings": {
         "baseURL": "https://llm-gateway-acp-prod.tail5566.ts.net/v1",
         "apiKey": "dummy"
       },
@@ -85,19 +108,23 @@
     },
 
     "oss-model-vault-v2": {
-      "npm": "@ai-sdk/openai-compatible",
       "name": "OSS Model Vault (V2)",
-      "options": {
+      "package": "@opencode/ai/providers/openai-compatible",
+      "env": ["COHERE_API_KEY"],
+      "settings": {
         "baseURL": "https://api.oss-models-5kszmt.cloud.cohere.com/v1",
         "apiKey": "{env:COHERE_API_KEY}"
       },
       "models": {
         "kimi-k3-gb200": {
           "name": "Kimi K3",
-          "reasoning": true,
-          "tool_call": true,
-          "interleaved": {
-            "field": "reasoning_content"
+          "compatibility": {
+            "reasoningField": "reasoning_content"
+          },
+          "capabilities": {
+            "tools": true,
+            "input": ["text"],
+            "output": ["text"]
           },
           // Total context length is 1,000,000. Use the same 90%/10% split as
           // the other vault model.
@@ -108,7 +135,11 @@
         },
         "glm-5-3-flash": {
           "name": "GLM-5.3 Flash",
-          "modalities": {
+          "compatibility": {
+            "reasoningField": "reasoning_content"
+          },
+          "capabilities": {
+            "tools": true,
             "input": ["text", "image"],
             "output": ["text"]
           },
@@ -118,12 +149,57 @@
           },
           "cost": {
             "input": 0.15,
-            "cache_read": 0.03,
-            "output": 0.5
-          },
-          "interleaved": {
-            "field": "reasoning_content"
+            "output": 0.5,
+            "cache": {
+              "read": 0.03
+            }
           }
+        }
+      }
+    },
+    "cohere-agent-gateway": {
+      "name": "Cohere Agent Gateway",
+      "package": "@opencode/ai/providers/openai",
+      "settings": {
+        "baseURL": "https://llm-gateway-acp-prod.tail5566.ts.net/v1",
+        "apiKey": "unused"
+      },
+      "models": {
+        "gpt-5.5": { "name": "GPT-5.5" },
+        "gpt-5.6-luna": { "name": "GPT-5.6 Luna" },
+        "gpt-5.6-sol": { "name": "GPT-5.6 Sol" },
+        "gpt-5.6-terra": { "name": "GPT-5.6 Terra" }
+      }
+    },
+    "cohere-agent-gateway-chat": {
+      "name": "Cohere Agent Gateway",
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {
+        "baseURL": "https://llm-gateway-acp-prod.tail5566.ts.net/v1",
+        "apiKey": "unused"
+      },
+      "models": {
+        "claude-opus-4-6": { "name": "Claude Opus 4.6" },
+        "claude-opus-4-8": { "name": "Claude Opus 4.8" },
+        "claude-opus-5": { "name": "Claude Opus 5" },
+        "claude-opus-5-5": { "name": "Claude Opus 5.5" },
+        "claude-sonnet-4-5": { "name": "Claude Sonnet 4.5" },
+        "claude-sonnet-5": { "name": "Claude Sonnet 5" },
+        "command-a-plus-05-2026": { "name": "Command A+" },
+        "command-bls-nightly": { "name": "Command BLS Nightly" },
+        "command-bls-nightly-previous": { "name": "Command BLS Nightly Previous" },
+        "gemma-4-31b": { "name": "Gemma 4 31B" },
+        "north-mini-code-1-0": { "name": "North Mini Code" }
+      }
+    }
+  },
+  "mcp": {
+    "servers": {
+      "agent-fabric": {
+        "type": "remote",
+        "url": "https://llm-gateway-acp-prod.tail5566.ts.net/mcp",
+        "oauth": {
+          "client_id": "system-mcp"
         }
       }
     }

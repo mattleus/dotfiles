@@ -88,11 +88,6 @@ install -d -m 755 -o agent -g agent /Users/matt/.config/herdr
   install -m 644 -o agent -g agent /opt/workbench/herdr/config.toml /Users/matt/.config/herdr/config.toml
 [ -f /Users/matt/.config/opencode/opencode.jsonc ] || \
   install -m 644 -o agent -g agent /opt/workbench/opencode/opencode.jsonc /Users/matt/.config/opencode/opencode.jsonc
-# models.dev catalog: network fetch is the default; the image-baked copy is the
-# fallback when the fetch is unavailable (spec 7's "network + baked-cache").
-install -d -m 755 -o agent -g agent /Users/matt/.cache/opencode
-[ -f /Users/matt/.cache/opencode/models.json ] || \
-  install -m 644 -o agent -g agent /opt/workbench/opencode/models.json /Users/matt/.cache/opencode/models.json
 
 # Session environment. sshd gives login shells a scrubbed environment, so the
 # image ENV never reaches ssh sessions; materialize the non-secret part into
@@ -107,7 +102,7 @@ export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
 export FM_HOME=/Users/matt/.firstmate
 export NPM_CONFIG_CACHE=/Users/matt/.cache/npm
 export PI_SKIP_VERSION_CHECK=1 PI_OFFLINE=1 PI_TELEMETRY=0
-export OPENCODE_DISABLE_AUTOUPDATE=1 OPENCODE_DISABLE_LSP_DOWNLOAD=1
+export OPENCODE_DISABLE_AUTOUPDATE=1 OPENCODE_MODELS_PATH=/opt/workbench/opencode/models.json
 export GIT_TERMINAL_PROMPT=0
 EOF
 

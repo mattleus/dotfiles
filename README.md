@@ -121,7 +121,7 @@ If you don't use it, just remove it from `brews` in your copy.
 Each block checks whether its tool is already on `PATH` (or the clone directory already exists) before doing anything, so re-running `rebuild.sh` is a no-op once installed.
 Remove these blocks from your copy if you don't use firstmate.
 
-**About opencode:** unlike the tools above, opencode *does* have a Homebrew formula and a nixpkgs package. It's still installed via `home.activation.installOpenCode` (the official installer into `~/.opencode/bin`, added to PATH by `home.sessionPath`) so that its in-app self-update works - opencode prompts when a new version is out and re-runs its installer, which needs a user-writable binary. A Nix store install is read-only and can't be replaced, so opencode stays out of `home.packages`. Update it from inside opencode whenever it prompts.
+**About opencode:** unlike the tools above, opencode *does* have a Homebrew formula and a nixpkgs package. It's still installed via `home.activation.installOpenCode` (the official **v2** installer into `~/.opencode/bin`, added to PATH by `home.sessionPath`) so that its in-app self-update works - a Nix store install is read-only and the updater can't replace it, so opencode stays out of `home.packages`. The activation also reinstalls over a v1 binary, since v1 only self-updates within the v1 track. The configs (`home/.config/opencode/opencode.jsonc` and the sandbox copy under `docker/workbench/config/opencode/`) are authored in the v2 schema (`providers`, `permissions` rules array, `update`).
 
 **Heads-up:**
 

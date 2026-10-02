@@ -84,12 +84,13 @@ RUN set -eu; \
   mise --version | grep -q "2026.9.10"
 
 # Agent + fleet CLIs, all pinned at build. Pins track the host fleet.
-# Deliberate: --ignore-scripts on everything except opencode-ai, whose npm
-# install needs its postinstall to fetch the platform binary.
+# Deliberate: --ignore-scripts on everything except @opencode/cli, whose
+# postinstall fetches the platform binary - npm 11 gates that behind
+# --allow-scripts=<pkg> for global installs, named explicitly here.
 RUN npm install -g --ignore-scripts @earendil-works/pi-coding-agent@0.85.1 \
       tasks-axi@0.2.5 gh-axi@0.1.30 chrome-devtools-axi@0.1.29 \
       quota-axi@0.1.43 lavish-axi@0.1.50 \
- && npm install -g opencode-ai@1.18.31
+ && npm install -g --allow-scripts=@opencode/cli @opencode/cli@2.0.16
 
 # The workbench shares the host fleet layout: agent's HOME is /Users/matt so
 # paths spelled identically on the host (~/work, ~/repos, the ~/firstmate code
@@ -114,8 +115,9 @@ COPY config/pi-agent/ /opt/workbench/pi-agent/
 COPY config/herdr/config.toml /opt/workbench/herdr/config.toml
 COPY config/opencode/opencode.jsonc /opt/workbench/opencode/opencode.jsonc
 
-# models.dev catalog baked at build as the offline/backstop copy opencode falls
-# back to when the network fetch fails (spec: network + baked-cache fallback).
+# models.dev catalog baked at build; sessions read IT (not the network) via
+# OPENCODE_MODELS_PATH, so the image pins the catalog like every other tool -
+# freshness rides the same rebuild cadence as the CLIs above.
 RUN curl -fsSL https://models.dev/api.json -o /opt/workbench/opencode/models.json \
  && test "$(stat -c %s /opt/workbench/opencode/models.json)" -gt 10000
 
@@ -247,9 +249,10 @@ RUN chmod 755 /usr/local/sbin/workbench-init
 
 # Hygiene: a pinned image must not self-update or phone home. This list is
 # duplicated into .zshenv by workbench-init (sshd scrubs login-shell env);
-# keep the two in sync.
+# keep the two in sync. (OPENCODE_DISABLE_LSP_DOWNLOAD was dropped when the
+# image moved to opencode v2: the env var no longer exists there.)
 ENV PI_SKIP_VERSION_CHECK=1 PI_OFFLINE=1 PI_TELEMETRY=0 \
-    OPENCODE_DISABLE_AUTOUPDATE=1 OPENCODE_DISABLE_LSP_DOWNLOAD=1 \
+    OPENCODE_DISABLE_AUTOUPDATE=1 OPENCODE_MODELS_PATH=/opt/workbench/opencode/models.json \
     GIT_TERMINAL_PROMPT=0 \
     FM_HOME=/Users/matt/.firstmate NPM_CONFIG_CACHE=/Users/matt/.cache/npm
 
