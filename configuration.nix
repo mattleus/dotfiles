@@ -65,6 +65,7 @@
       "clippy"
       "treehouse"
       "git-filter-repo"
+      "duti"
     ];
     casks = [
       "wezterm"

@@ -348,4 +348,11 @@ in
         --global --agent claude-code --agent codex --agent opencode --agent pi --yes
     fi
   '';
+
+  # Keep Markdown files associated with MacDown 3000 through Launch Services. duti is a small
+  # Homebrew utility because nix-darwin/home-manager do not expose a declarative file-association
+  # option. The cask activation registers the app before this Home Manager activation runs.
+  home.activation.setMacDownDefault = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    run /opt/homebrew/bin/duti -s app.macdown.macdown3000 md all
+  '';
 }
