@@ -28,10 +28,11 @@ result-*
 # it must not be committed.
 /home/.config/workbench/
 
-# pi config staged into the workbench build context by the wrapper from its
-# authored home under home/.pi/agent/ (derived artifact - never commit).
+# pi/herdr/nvim configs staged into the workbench build context by the wrapper
+# from their authored homes under home/ (derived artifacts - never commit).
 /docker/workbench/config/pi-agent/
 /docker/workbench/config/herdr/
+/docker/workbench/config/nvim/
 
 # opencode skills are installed at runtime by the skills CLI (see installMattPocockSkills
 # in home.nix) into ~/.config/opencode, which symlinks into this repo - never commit them.

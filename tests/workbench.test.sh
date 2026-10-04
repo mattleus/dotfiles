@@ -48,7 +48,7 @@ oc_parse="$(node -e "
   const src = require('fs').readFileSync('$BENCH/config/opencode/opencode.jsonc', 'utf8');
   // JSONC subset used here is a JS object literal; evaluates without executing code.
   const o = (new Function('return (' + src + ')'))();
-  console.log(JSON.stringify({permissions: o.permissions, providers: Object.keys(o.providers || {}), update: o.update}));
+  console.log(JSON.stringify({permissions: o.permissions, providers: Object.keys(o.providers || {}), update: o.update, websearch: o.websearch}));
 " 2>/dev/null)"
 [ -n "$oc_parse" ] \
   && pass "opencode.jsonc parses (JSONC literal)" \
@@ -57,8 +57,7 @@ oc_parse="$(node -e "
 for needle in \
   '{"action":"shell","resource":"git push --force*","effect":"deny"}' \
   '{"action":"shell","resource":"git push -f*","effect":"deny"}' \
-  '{"action":"external_directory","resource":"*","effect":"ask"}' \
-  '{"action":"websearch","resource":"*","effect":"deny"}' \
+  '{"action":"external_directory","resource":"*","effect":"allow"}' \
   '"update":"disable"' \
   '"oss-model-vault-v2"' \
   '"cohere-oss"'; do
@@ -67,6 +66,14 @@ for needle in \
     *) fail "opencode.jsonc missing $needle" ;;
   esac
 done
+case "$oc_parse" in
+  *'"action":"websearch"'*'"effect":"deny"'*) fail "websearch deny lingers (sandbox websearch is open - TinyFish serves keyless)" ;;
+  *) pass "sandbox websearch is open (no deny rule; TinyFish serves keyless)" ;;
+esac
+case "$oc_parse" in
+  *'"websearch":{"provider":"tinyfish"}'*) pass "websearch provider pinned (skips the interactive provider picker)" ;;
+  *) fail "websearch provider not pinned - autonomous runs would stall on the picker" ;;
+esac
 case "$oc_parse" in
   *'{"action":"read","resource":"*.env","effect":"deny"}'*) pass "opencode.jsonc carries the .env read-deny" ;;
   *) fail "opencode.jsonc missing the .env read-deny" ;;
@@ -89,7 +96,7 @@ grep -qF "grep -Eq '(^| )v?2\.'" "$ROOT/home.nix" \
   || fail "installOpenCode lacks the v1-present guard"
 
 # --- Dockerfile pins stay sha256-gated ------------------------------------------
-for pin in "herdr.*v0.8.0" "treehouse-v2.1.1" "no-mistakes-v1.72.0" "mise-v2026.9.10" "pi-coding-agent@0.85.1" "@opencode/cli@2.0.16" "tasks-axi@0.2.5" "gh-axi@0.1.30" "chrome-devtools-axi@0.1.29" "quota-axi@0.1.43" "lavish-axi@0.1.50" "node:24-bookworm-slim" "fd-find" "extended-keys"; do
+for pin in "herdr.*v0.8.0" "treehouse-v2.1.1" "no-mistakes-v1.72.0" "mise-v2026.9.10" "pi-coding-agent@0.85.1" "@opencode/cli@2.0.16" "tasks-axi@0.2.5" "gh-axi@0.1.30" "chrome-devtools-axi@0.1.29" "quota-axi@0.1.43" "lavish-axi@0.1.50" "node:24-bookworm-slim" "fd-find" "extended-keys" "gcc g++" "neovim/neovim/releases/download/v0.12.4" "nvim-linux-arm64" "lua-language-server-3.19.1" "pyright@1.1.414" "typescript-language-server@6.0.1" "vscode-langservers-extracted@4.10.0" "yaml-language-server@1.24.0"; do
   grep -q "$pin" "$BENCH/Dockerfile" \
     && pass "Dockerfile pins $pin" \
     || fail "Dockerfile missing pin $pin"
@@ -100,7 +107,7 @@ sha_count="$(grep -c 'SHA256=\|_SHA=' "$BENCH/Dockerfile")"
   || fail "Dockerfile sha256 gates too few ($sha_count)"
 
 # --- hygiene env: Dockerfile ENV and init .zshenv stay in sync -------------------
-for var in PI_SKIP_VERSION_CHECK PI_OFFLINE PI_TELEMETRY OPENCODE_DISABLE_AUTOUPDATE OPENCODE_MODELS_PATH GIT_TERMINAL_PROMPT FM_HOME NPM_CONFIG_CACHE; do
+for var in PI_SKIP_VERSION_CHECK PI_OFFLINE PI_TELEMETRY OPENCODE_DISABLE_AUTOUPDATE OPENCODE_MODELS_PATH GIT_TERMINAL_PROMPT EDITOR FM_HOME NPM_CONFIG_CACHE; do
   grep -q "$var" "$BENCH/Dockerfile" && grep -q "$var" "$BENCH/workbench-init" \
     && pass "$var in both Dockerfile ENV and init zshenv" \
     || fail "$var drifted between Dockerfile and init"
@@ -131,7 +138,7 @@ for host_path in '$HOME/work:$HOME/work' \
     && pass "wrapper mounts $host_path rw at identical path" \
     || fail "wrapper missing mount $host_path"
 done
-for volume in workbench-pi-agent workbench-opencode-data workbench-npm-cache workbench-pnpm-cache workbench-mise; do
+for volume in workbench-pi-agent workbench-opencode-data workbench-npm-cache workbench-pnpm-cache workbench-mise workbench-nvim-data workbench-nvim-state; do
   grep -q "$volume" "$WRAPPER" \
     && pass "wrapper mounts named volume $volume" \
     || fail "wrapper missing volume $volume"
@@ -152,6 +159,9 @@ grep -q '/docker/workbench/config/pi-agent/' "$ROOT/.gitignore" \
 grep -q '/docker/workbench/config/herdr/' "$ROOT/.gitignore" \
   && pass "staged herdr config build context is gitignored" \
   || fail "staged herdr config build context not gitignored"
+grep -q '/docker/workbench/config/nvim/' "$ROOT/.gitignore" \
+  && pass "staged nvim config build context is gitignored" \
+  || fail "staged nvim config build context not gitignored"
 if grep -q 'find-generic-password\|env.local' "$WRAPPER"; then
   pass "wrapper reads secrets from the keychain or env.local"
 else
@@ -166,6 +176,21 @@ grep -q 'themes' "$WRAPPER" \
 grep -q 'home/.config/herdr/config.toml' "$WRAPPER" \
   && pass "wrapper stages herdr config into the build context" \
   || fail "wrapper does not stage herdr config"
+grep -q 'home/.config/nvim' "$WRAPPER" \
+  && pass "wrapper stages nvim config into the build context" \
+  || fail "wrapper does not stage nvim config"
+grep -qF 'find "$bench_dir/config/nvim"' "$WRAPPER" \
+  && pass "wrapper rebuilds the image when the nvim config changes" \
+  || fail "nvim config missing from the image build-hash inputs"
+grep -q 'COPY config/nvim/' "$BENCH/Dockerfile" \
+  && pass "image bakes the repo-authored nvim config" \
+  || fail "image does not bake nvim config"
+grep -q '/Users/matt/.config/nvim' "$BENCH/workbench-init" \
+  && pass "init seeds nvim config when absent" \
+  || fail "init does not seed nvim config"
+grep -q '.local/share/nvim' "$BENCH/workbench-init" \
+  && pass "init chowns the nvim named volumes" \
+  || fail "init does not chown the nvim named volumes"
 grep -q 'pi-agent/themes' "$BENCH/workbench-init" \
   && pass "init seeds pi themes when absent" \
   || fail "init does not seed pi themes"

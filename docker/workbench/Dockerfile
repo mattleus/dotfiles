@@ -6,7 +6,8 @@
 #
 # Build via the `workbench` wrapper (home/.local/bin/workbench), never by hand:
 # the wrapper stages home/.pi/agent/{settings.json,models.json} (the authored
-# source) into config/pi-agent/ before building, so those COPYs resolve.
+# source) into config/pi-agent/ and home/.config/nvim/ (the authored nvim
+# config) into config/nvim/ before building, so those COPYs resolve.
 #
 # Seeded from the retired agent-box image (22+ hours of precedent on this
 # machine): uid 501 with HOME=/Users/matt for identical-path sharing, sshd as
@@ -18,8 +19,10 @@ FROM node:24-bookworm-slim
 # archive keyring. git-lfs: host repos carry LFS pointers; without it in-tree
 # checkouts/clones referencing LFS content break. fd: pi shells out to `fd` for
 # its file pickers - Debian ships the binary as `fdfind`, so symlink it.
+# gcc/g++: nvim-treesitter compiles every parser from C (a few from C++) source
+# inside nvim at runtime, and the slim base ships no cc.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends git git-lfs ripgrep fd-find curl ca-certificates \
+ && apt-get install -y --no-install-recommends git git-lfs ripgrep fd-find curl ca-certificates gcc g++ \
  && ln -sf /usr/bin/fdfind /usr/local/bin/fd \
  && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
       -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
@@ -83,6 +86,46 @@ RUN set -eu; \
   no-mistakes --version | grep -q "v1.72.0"; \
   mise --version | grep -q "2026.9.10"
 
+# Neovim: the host's own editor setup runs in the sandbox too. The authored
+# config (home/.config/nvim) needs the 0.11+ LSP APIs (vim.lsp.config/enable),
+# far ahead of bookworm's apt neovim, so pin the official release tarball with
+# the same sha256 gate as herdr; versions track the host (the version leader).
+# The full tree stays under /opt (nvim finds its runtime relative to the
+# binary); only the binary joins PATH.
+RUN set -eu; \
+  case "$TARGETARCH" in \
+    arm64) NVIM_ASSET=nvim-linux-arm64;  NVIM_SHA=ceb7e88c6b681f0515d135dcdfad54f5eb4373b25ce6172197cd9a69c758063f ;; \
+    amd64) NVIM_ASSET=nvim-linux-x86_64; NVIM_SHA=012bf3fcac5ade43914df3f174668bf64d05e049a4f032a388c027b1ebd78628 ;; \
+    *) echo "unsupported TARGETARCH $TARGETARCH" >&2; exit 1 ;; \
+  esac; \
+  curl -fsSL --max-filesize 40000000 \
+    "https://github.com/neovim/neovim/releases/download/v0.12.4/$NVIM_ASSET.tar.gz" \
+    -o /tmp/nvim.tgz; \
+  echo "$NVIM_SHA  /tmp/nvim.tgz" | sha256sum -c -; \
+  tar xzf /tmp/nvim.tgz -C /opt; \
+  ln -s "/opt/$NVIM_ASSET/bin/nvim" /usr/local/bin/nvim; \
+  rm /tmp/nvim.tgz; \
+  nvim --version | head -1 | grep -q "NVIM v0.12.4"
+
+# lua-language-server for nvim's LSP set (lua/plugins/lsp.lua enables exactly
+# five servers: this one ships as a tarball release only and follows the herdr
+# pin shape; the other four are npm packages pinned below).
+RUN set -eu; \
+  case "$TARGETARCH" in \
+    arm64) LLS_ASSET=lua-language-server-3.19.1-linux-arm64; LLS_SHA=abd2572e8fc929dc838a81ffb8473c5bce0bf39bfe8edb4b120b3b623176ce83 ;; \
+    amd64) LLS_ASSET=lua-language-server-3.19.1-linux-x64; LLS_SHA=e9235d2d72ef55bc41cf8c99cda2ed64777682024b4bb81f5dea425060c5cbb8 ;; \
+    *) echo "unsupported TARGETARCH $TARGETARCH" >&2; exit 1 ;; \
+  esac; \
+  curl -fsSL --max-filesize 40000000 \
+    "https://github.com/LuaLS/lua-language-server/releases/download/3.19.1/$LLS_ASSET.tar.gz" \
+    -o /tmp/lls.tgz; \
+  echo "$LLS_SHA  /tmp/lls.tgz" | sha256sum -c -; \
+  mkdir -p "/opt/lua-language-server-3.19.1" \
+ && tar xzf /tmp/lls.tgz -C "/opt/lua-language-server-3.19.1"; \
+  ln -s "/opt/lua-language-server-3.19.1/bin/lua-language-server" /usr/local/bin/lua-language-server; \
+  rm /tmp/lls.tgz; \
+  lua-language-server --version | grep -q "3.19.1"
+
 # Agent + fleet CLIs, all pinned at build. Pins track the host fleet.
 # Deliberate: --ignore-scripts on everything except @opencode/cli, whose
 # postinstall fetches the platform binary - npm 11 gates that behind
@@ -91,6 +134,12 @@ RUN npm install -g --ignore-scripts @earendil-works/pi-coding-agent@0.85.1 \
       tasks-axi@0.2.5 gh-axi@0.1.30 chrome-devtools-axi@0.1.29 \
       quota-axi@0.1.43 lavish-axi@0.1.50 \
  && npm install -g --allow-scripts=@opencode/cli @opencode/cli@2.0.16
+
+# nvim's LSP servers (lua/plugins/lsp.lua, mirroring the same set the host gets
+# from nix). ts_ls finds tsserver via a globally installed typescript.
+RUN npm install -g --ignore-scripts \
+      pyright@1.1.414 typescript@7.0.2 typescript-language-server@6.0.1 \
+      vscode-langservers-extracted@4.10.0 yaml-language-server@1.24.0
 
 # The workbench shares the host fleet layout: agent's HOME is /Users/matt so
 # paths spelled identically on the host (~/work, ~/repos, the ~/firstmate code
@@ -108,11 +157,14 @@ RUN install -d /Users \
 # home/.pi/agent/ (apiKey values are $COHERE_API_KEY env references, never
 # values); herdr config.toml is the repo-authored in-sandbox session-surface
 # config; opencode.jsonc is authored for the sandbox (host config + the baked
-# permission guardrails; providers resolve {env:COHERE_API_KEY}). workbench-init
-# seeds these into place only when absent, so runtime changes survive image
-# rebuilds. No auth file is baked or mounted anywhere.
+# permission guardrails; providers resolve {env:COHERE_API_KEY}); config/nvim/
+# is the staged copy of the host's authored home/.config/nvim (init.lua, lua/,
+# and the plugin lockfiles). workbench-init seeds these into place only when
+# absent, so runtime changes survive image rebuilds. No auth file is baked or
+# mounted anywhere.
 COPY config/pi-agent/ /opt/workbench/pi-agent/
 COPY config/herdr/config.toml /opt/workbench/herdr/config.toml
+COPY config/nvim/ /opt/workbench/nvim/
 COPY config/opencode/opencode.jsonc /opt/workbench/opencode/opencode.jsonc
 
 # models.dev catalog baked at build; sessions read IT (not the network) via
@@ -253,7 +305,7 @@ RUN chmod 755 /usr/local/sbin/workbench-init
 # image moved to opencode v2: the env var no longer exists there.)
 ENV PI_SKIP_VERSION_CHECK=1 PI_OFFLINE=1 PI_TELEMETRY=0 \
     OPENCODE_DISABLE_AUTOUPDATE=1 OPENCODE_MODELS_PATH=/opt/workbench/opencode/models.json \
-    GIT_TERMINAL_PROMPT=0 \
+    GIT_TERMINAL_PROMPT=0 EDITOR=nvim \
     FM_HOME=/Users/matt/.firstmate NPM_CONFIG_CACHE=/Users/matt/.cache/npm
 
 WORKDIR /Users/matt

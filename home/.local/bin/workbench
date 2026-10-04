@@ -33,6 +33,7 @@
 #     ~/repos/github/cohere-ai        .local/share/opencode (opencode session data)
 #     ~/repos/github/reliant-ai       .cache/{npm,pnpm} (12x faster than the bind mount)
 #     ~/firstmate (code root)         .local/share/mise (per-repo runtimes survive recreation)
+#                                     .local/{share,state}/nvim (lazy.nvim plugins, treesitter parsers, undo)
 #     ~/.firstmate (FM_HOME: fleet home - state/data/config and projects/ clones)
 #     ~/.treehouse (linked worktrees of the code root and fleet clones)
 #     ~/Documents/agent_reports (agent research/report output, readable on the host)
@@ -352,9 +353,11 @@ if [ "$cmd" = "up" ]; then
     ssh-keygen -q -t ed25519 -N '' -C workbench -f "$key_file"
   fi
 
-  # Stage the authored pi + herdr configs (single source of truth under home/)
-  # into the build context; the Dockerfile COPYs them and never reaches outside it.
-  # config/{pi-agent,herdr}/ are gitignored - the staged files are derived artifacts.
+  # Stage the authored pi + herdr + nvim configs (single source of truth under
+  # home/) into the build context; the Dockerfile COPYs them and never reaches
+  # outside it. config/{pi-agent,herdr,nvim}/ are gitignored - the staged files
+  # are derived artifacts. nvim stages a whole tree, so restage it clean: a
+  # file dropped on the host must not linger in the staged copy.
   mkdir -p "$bench_dir/config/pi-agent/themes" "$bench_dir/config/herdr"
   cp "$repo_root/home/.config/herdr/config.toml" "$bench_dir/config/herdr/config.toml"
   cp "$repo_root/home/.pi/agent/settings.json" "$bench_dir/config/pi-agent/settings.json"
@@ -362,6 +365,8 @@ if [ "$cmd" = "up" ]; then
   if [ -d "$repo_root/home/.pi/agent/themes" ]; then
     cp -R "$repo_root/home/.pi/agent/themes/." "$bench_dir/config/pi-agent/themes/"
   fi
+  rm -rf "$bench_dir/config/nvim"
+  cp -R "$repo_root/home/.config/nvim" "$bench_dir/config/nvim"
 
   # Rebuild only when the build inputs changed: their combined sha256 is stored
   # on the image as a label at build time, compared against the files on disk
@@ -372,6 +377,7 @@ if [ "$cmd" = "up" ]; then
         "$bench_dir/config/opencode/opencode.jsonc" \
         "$bench_dir/git-template/hooks/pre-push" ;
       find "$bench_dir/config/pi-agent" -type f ! -name .DS_Store | sort | xargs shasum -a 256 ;
+      find "$bench_dir/config/nvim" -type f ! -name .DS_Store | sort | xargs shasum -a 256 ;
       find "$bench_dir/bin" -type f ! -name .DS_Store | sort | xargs shasum -a 256 ;
     } | shasum -a 256 | awk '{print $1}'
   )"
@@ -414,6 +420,8 @@ if [ "$cmd" = "up" ]; then
       -v workbench-npm-cache:"$box_home/.cache/npm" \
       -v workbench-pnpm-cache:"$box_home/.cache/pnpm" \
       -v workbench-mise:"$box_home/.local/share/mise" \
+      -v workbench-nvim-data:"$box_home/.local/share/nvim" \
+      -v workbench-nvim-state:"$box_home/.local/state/nvim" \
       "$image"
   else
     docker start "$container" >/dev/null 2>&1 || true

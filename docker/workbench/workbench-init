@@ -16,7 +16,7 @@ ssh-keygen -A >/dev/null
 # marker file inside the volume, so the -R never reruns over a grown tree.
 # (A volume docker seeds from image content inherits the image's agent
 # ownership and skips the -R except for planting the marker.)
-for d in .pi/agent .local/share/opencode .cache/npm .cache/pnpm .local/share/mise; do
+for d in .pi/agent .local/share/opencode .cache/npm .cache/pnpm .local/share/mise .local/share/nvim .local/state/nvim; do
   p="/Users/matt/$d"
   mkdir -p "$p"
   if [ ! -e "$p/.workbench-owned" ]; then
@@ -30,7 +30,7 @@ done
 # mounts; agent needs them writable for sibling caches/state (~/.cache/mise,
 # ~/.local/state/mise). Shallow chown of the parents only, every boot (cheap:
 # never recurses into the grown volume trees).
-for p in /Users/matt/.pi /Users/matt/.cache /Users/matt/.local /Users/matt/.local/share; do
+for p in /Users/matt/.pi /Users/matt/.cache /Users/matt/.local /Users/matt/.local/share /Users/matt/.local/state; do
   chown agent:agent "$p"
 done
 
@@ -88,6 +88,16 @@ install -d -m 755 -o agent -g agent /Users/matt/.config/herdr
   install -m 644 -o agent -g agent /opt/workbench/herdr/config.toml /Users/matt/.config/herdr/config.toml
 [ -f /Users/matt/.config/opencode/opencode.jsonc ] || \
   install -m 644 -o agent -g agent /opt/workbench/opencode/opencode.jsonc /Users/matt/.config/opencode/opencode.jsonc
+# nvim: the authored config tree (init.lua, lua/, plugin lockfiles) seeds as a
+# unit when init.lua is absent; ~/.config/nvim is container-local rootfs, so
+# edits reset with `docker rm` like the other seeded configs. Plugins,
+# compiled treesitter parsers, and undo history live in the nvim named volumes
+# instead, surviving container recreation.
+if [ ! -e /Users/matt/.config/nvim/init.lua ]; then
+  install -d -m 755 -o agent -g agent /Users/matt/.config/nvim
+  cp -R /opt/workbench/nvim/. /Users/matt/.config/nvim/
+  chown -R agent:agent /Users/matt/.config/nvim
+fi
 
 # Session environment. sshd gives login shells a scrubbed environment, so the
 # image ENV never reaches ssh sessions; materialize the non-secret part into
@@ -103,7 +113,7 @@ export FM_HOME=/Users/matt/.firstmate
 export NPM_CONFIG_CACHE=/Users/matt/.cache/npm
 export PI_SKIP_VERSION_CHECK=1 PI_OFFLINE=1 PI_TELEMETRY=0
 export OPENCODE_DISABLE_AUTOUPDATE=1 OPENCODE_MODELS_PATH=/opt/workbench/opencode/models.json
-export GIT_TERMINAL_PROMPT=0
+export GIT_TERMINAL_PROMPT=0 EDITOR=nvim
 EOF
 
 exec /usr/sbin/sshd -D -e
