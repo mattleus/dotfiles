@@ -78,6 +78,7 @@
       "rectangle"
       "google-drive"
       "opensuperwhisper"
+      "macdown-3000"
     ];
   };
 }
