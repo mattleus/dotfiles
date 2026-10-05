@@ -116,6 +116,11 @@ Read through `brews` and `casks` before you run `bootstrap.sh` or `rebuild.sh` f
 It's a real public Homebrew formula (`brew info herdr` finds it in homebrew-core, no tap needed), so it will install fine.
 If you don't use it, just remove it from `brews` in your copy.
 
+**About Whip (control herdr from a phone):** `configuration.nix` enables Remote Login (sshd) via an activation script (nix-darwin has no sshd option), and `home.nix` installs `whipair` from the whip flake (`github:kosumic/whip`).
+Whip is a third-party mobile app for herdr (Android/iOS, not affiliated with the herdr project); it talks to this Mac over SSH, so get both devices on the same Tailscale tailnet, run `whipair` here, and scan the QR from the Whip app (**Add host -> Scan pairing QR**) to authorize its key.
+Whip accepts herdr protocols 17-22 (herdr 0.8.0 reports 19).
+If you don't use Whip, remove the `enableSshd` activation script and the whip flake input/package - with them gone, no SSH server runs.
+
 **About the firstmate toolchain:** `treehouse` is a real Homebrew formula, so it's in the `brews` list like `herdr`.
 `no-mistakes`, `firstmate`, and the `*-axi` CLIs (`gh-axi`, `chrome-devtools-axi`, `lavish-axi`, `tasks-axi`, `quota-axi`) have no Homebrew formula or nixpkgs package, so `home.nix` installs them with `home.activation` blocks instead: `no-mistakes` via its own curl-piped install script, `firstmate` via `git clone` into `~/firstmate`, and the `*-axi` tools via `npm install -g` (which is why `nodejs` is in `home.packages`).
 Each block checks whether its tool is already on `PATH` (or the clone directory already exists) before doing anything, so re-running `rebuild.sh` is a no-op once installed.
@@ -133,7 +138,7 @@ Remove these blocks from your copy if you don't use firstmate.
 ## Repo tour
 
 - `flake.nix` - the entry point.
-  Wires up nixpkgs, nix-darwin, home-manager, and nix-homebrew, and declares the `mac` machine.
+  Wires up nixpkgs, nix-darwin, home-manager, nix-homebrew, and whip, and declares the `mac` machine.
 - `configuration.nix` - system-level config: macOS defaults, Homebrew.
 - `home.nix` - user-level config: shell, packages, prompt, and the symlinks described below.
 - `rebuild.sh` - re-applies the config after the first switch.

@@ -1,4 +1,4 @@
-{ config, pkgs, lib, user, ... }:
+{ config, pkgs, lib, user, whip, ... }:
 
 let
   dotfiles = "${config.home.homeDirectory}/.dotfiles";
@@ -36,6 +36,10 @@ in
     # the font everything renders in
     nerd-fonts.hack
     pkgs.rectangle
+  ] ++ [
+    # whipair (github.com/kosumic/whip): QR pairing helper that authorizes the
+    # Whip phone app's SSH key onto this Mac, so the phone can reach herdr.
+    whip.packages.${pkgs.stdenv.hostPlatform.system}.whipair
   ];
   fonts.fontconfig.enable = true;
   home.sessionVariables.EDITOR = "nvim";

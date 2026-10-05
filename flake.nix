@@ -11,9 +11,14 @@
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
 
     nix-homebrew.url = "github:zhaofengli/nix-homebrew";
+
+    # Whip (github.com/kosumic/whip) is the third-party phone client for herdr.
+    # We only use its whipair package: the one-shot QR pairing helper that
+    # authorizes the phone's SSH key onto this Mac.
+    whip.url = "github:kosumic/whip";
   };
 
-  outputs = inputs@{ self, nix-darwin, nix-homebrew, home-manager, nixpkgs }:
+  outputs = inputs@{ self, nix-darwin, nix-homebrew, home-manager, nixpkgs, whip }:
     let
       # The one username line to change if this isn't your machine.
       # bootstrap.sh offers to rewrite this for you if your macOS username differs.
@@ -30,7 +35,7 @@
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
             home-manager.backupFileExtension = "preNixBackup";
-            home-manager.extraSpecialArgs = { inherit user; };
+            home-manager.extraSpecialArgs = { inherit user whip; };
             home-manager.users.${user} = import ./home.nix;
           }
         ];

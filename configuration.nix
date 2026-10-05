@@ -49,6 +49,21 @@
     inherit user;
     autoMigrate = true;
   };
+
+  # Remote Login (sshd) so the Whip phone app (github.com/kosumic/whip) can reach
+  # this Mac over Tailscale and drive herdr. nix-darwin has no sshd option;
+  # launchctl load -w on Apple's plist persists the same state the Sharing pane
+  # toggle flips (an entry in /var/db/com.apple.xpc.launchd). Idempotent: skip
+  # when sshd is already bootstrapped. The pairing flow (whipair) authorizes an
+  # SSH key; macOS password auth also remains enabled per stock sshd_config.
+  system.activationScripts.enableSshd.text = ''
+    if ! /bin/launchctl print system/com.openssh.sshd >/dev/null 2>&1; then
+      /bin/launchctl load -w /System/Library/LaunchDaemons/ssh.plist \
+        || /bin/launchctl bootstrap system /System/Library/LaunchDaemons/ssh.plist \
+        || true
+    fi
+  '';
+
   homebrew = {
     enable = true;
     onActivation.cleanup = "zap";  # remove anything not listed here
