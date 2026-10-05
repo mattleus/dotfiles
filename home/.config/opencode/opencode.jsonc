@@ -201,6 +201,14 @@
         "oauth": {
           "client_id": "system-mcp"
         }
+      },
+      // Linear's official hosted MCP (Streamable HTTP). OAuth 2.1 with dynamic
+      // client registration: first use shows "needs authentication" in
+      // `opencode mcp list` - sign in via /mcps inside the TUI. Credentials are
+      // stored by opencode outside this config, so nothing secret lives in git.
+      "linear": {
+        "type": "remote",
+        "url": "https://mcp.linear.app/mcp"
       }
     }
   }
