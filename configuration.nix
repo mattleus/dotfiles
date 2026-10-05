@@ -54,6 +54,12 @@
     onActivation.cleanup = "zap";  # remove anything not listed here
     onActivation.autoUpdate = true;
     onActivation.extraFlags = [ "--force" ];
+    taps = [
+      {
+        name = "b451c/quickmd";  # QuickMD ships only via its own tap, not homebrew-cask
+        trusted = true;          # Homebrew 6+ refuses to load casks from untrusted taps
+      }
+    ];
     brews = [
       "herdr"
       "pyenv"
@@ -79,7 +85,7 @@
       "rectangle"
       "google-drive"
       "opensuperwhisper"
-      "macdown-3000"
+      "quickmd"
     ];
   };
 }

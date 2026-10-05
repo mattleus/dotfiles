@@ -351,10 +351,10 @@ in
     fi
   '';
 
-  # Keep Markdown files associated with MacDown 3000 through Launch Services. duti is a small
+  # Keep Markdown files associated with QuickMD through Launch Services. duti is a small
   # Homebrew utility because nix-darwin/home-manager do not expose a declarative file-association
   # option. The cask activation registers the app before this Home Manager activation runs.
-  home.activation.setMacDownDefault = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    run /opt/homebrew/bin/duti -s app.macdown.macdown3000 md all
+  home.activation.setQuickMDDefault = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    run /opt/homebrew/bin/duti -s pl.falami.studio.QuickMD md all
   '';
 }
