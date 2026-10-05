@@ -119,24 +119,22 @@
         "kimi-k3-gb200": {
           "name": "Kimi K3",
           "compatibility": {
-            "reasoningField": "reasoning_content"
+            "reasoningField": "reasoning"
           },
           "capabilities": {
             "tools": true,
-            "input": ["text"],
+            "input": ["text", "image"],
             "output": ["text"]
           },
-          // Total context length is 1,000,000. Use the same 90%/10% split as
-          // the other vault model.
           "limit": {
-            "context": 900000,
-            "output": 100000
+            "context": 1048576,
+            "output": 32768
           }
         },
         "glm-5-3-flash": {
           "name": "GLM-5.3 Flash",
           "compatibility": {
-            "reasoningField": "reasoning_content"
+            "reasoningField": "reasoning"
           },
           "capabilities": {
             "tools": true,
@@ -146,13 +144,66 @@
           "limit": {
             "context": 1048576,
             "output": 131072
+          }
+        },
+        "deepseek-v4-1-flash": {
+          "name": "DeepSeek V4.1 Flash",
+          "compatibility": {
+            "reasoningField": "reasoning"
           },
-          "cost": {
-            "input": 0.15,
-            "output": 0.5,
-            "cache": {
-              "read": 0.03
-            }
+          "capabilities": {
+            "tools": true,
+            "input": ["text", "image"],
+            "output": ["text"]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          }
+        },
+        "mimo-v2-6-flash": {
+          "name": "MiMo V2.6 Flash",
+          "compatibility": {
+            "reasoningField": "reasoning"
+          },
+          "capabilities": {
+            "tools": true,
+            "input": ["text", "image"],
+            "output": ["text"]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          }
+        },
+        "mimo-v2-6-pro": {
+          "name": "MiMo V2.6 Pro",
+          "compatibility": {
+            "reasoningField": "reasoning"
+          },
+          "capabilities": {
+            "tools": true,
+            "input": ["text", "image"],
+            "output": ["text"]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          }
+        },
+        "kimi-k3-b200-pd-1p1d": {
+          "name": "Kimi K3 (vLLM PD 1P1D)",
+          "compatibility": {
+            "reasoningField": "reasoning"
+          },
+          "capabilities": {
+            "tools": true,
+            "input": ["text", "image"],
+            "output": ["text"]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 32768
           }
         }
       }
