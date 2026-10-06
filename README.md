@@ -128,6 +128,8 @@ Remove these blocks from your copy if you don't use firstmate.
 
 **About opencode:** unlike the tools above, opencode *does* have a Homebrew formula and a nixpkgs package. It's still installed via `home.activation.installOpenCode` (the official **v2** installer into `~/.opencode/bin`, added to PATH by `home.sessionPath`) so that its in-app self-update works - a Nix store install is read-only and the updater can't replace it, so opencode stays out of `home.packages`. The activation also reinstalls over a v1 binary, since v1 only self-updates within the v1 track. The configs (`home/.config/opencode/opencode.jsonc` and the sandbox copy under `docker/workbench/config/opencode/`) are authored in the v2 schema (`providers`, `permissions` rules array, `update`).
 
+No-mistakes is intentionally separate from that interactive host install: Home Manager installs a pinned `opencode-ai@1.18.31` under `~/.local/share/no-mistakes/` and points only its reviewer and fixer roles at that binary. This preserves the host's v2 command and configuration while avoiding the v2.0.16 unattended-review submission failure.
+
 **Heads-up:**
 
 - `home/AGENTS.md` is my personal agent policy, and `home.nix` installs it for Claude, Codex, and opencode.

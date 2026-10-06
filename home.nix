@@ -252,6 +252,34 @@ in
   home.file.".codex/AGENTS.md".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/AGENTS.md";
 
+  # no-mistakes review workers use the proven v1 OpenCode behavior. Keep this
+  # separate from the host's interactive v2 binary and its v2 configuration:
+  # v2.0.16 can leave an unattended review prompt unsubmitted, while v1.18.31
+  # submits correctly. npm verifies the package and its platform dependency
+  # integrity from the registry metadata; the exact version is still pinned.
+  home.activation.installValidationOpenCode = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    validationOpenCodeRoot="$HOME/.local/share/no-mistakes/opencode-v1.18.31"
+    validationOpenCode="$validationOpenCodeRoot/bin/opencode"
+    if [ ! -x "$validationOpenCode" ] || ! "$validationOpenCode" --version 2>/dev/null | grep -q "1.18.31"; then
+      run mkdir -p "$validationOpenCodeRoot"
+      run env PATH="/opt/homebrew/bin:/usr/local/bin:$PATH" npm install -g --prefix "$validationOpenCodeRoot" --allow-scripts=opencode-ai opencode-ai@1.18.31
+    fi
+  '';
+
+  # no-mistakes reads this machine-local config from ~/.no-mistakes. The
+  # default/fix pipeline roles stay on Pi; only unattended review and review
+  # fixes use the dedicated v1 worker binary above.
+  home.file.".no-mistakes/config.yaml".text = ''
+    agent: pi
+    agent_path_override:
+      opencode: ${config.home.homeDirectory}/.local/share/no-mistakes/opencode-v1.18.31/bin/opencode
+    review_agents:
+      reviewer:
+        agent: opencode
+      fixer:
+        agent: opencode
+  '';
+
   # opencode: deliberately NOT a nixpkgs package or Homebrew formula (it has both) so that its
   # in-app self-update works - opencode prompts when a new version exists and re-runs its own
   # installer, which needs a user-writable binary. The official v2 installer puts it in
