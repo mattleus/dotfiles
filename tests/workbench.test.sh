@@ -94,9 +94,12 @@ grep -q 'opencode.ai/v2/install' "$ROOT/home.nix" \
 grep -qF "grep -Eq '(^| )v?2\.'" "$ROOT/home.nix" \
   && pass "installOpenCode also reinstalls over a v1 binary" \
   || fail "installOpenCode lacks the v1-present guard"
+grep -qF 'no-mistakes" --version 2>/dev/null | grep -q "v1.72.0"' "$ROOT/home.nix" \
+  && pass "installNoMistakes also reinstalls over a v1.72.0 binary" \
+  || fail "installNoMistakes lacks the v1.72.0-present guard"
 
 # --- Dockerfile pins stay sha256-gated ------------------------------------------
-for pin in "herdr.*v0.8.0" "treehouse-v2.1.1" "no-mistakes-v1.72.0" "mise-v2026.9.10" "pi-coding-agent@0.85.1" "@opencode/cli@2.0.16" "tasks-axi@0.2.5" "gh-axi@0.1.30" "chrome-devtools-axi@0.1.29" "quota-axi@0.1.43" "lavish-axi@0.1.50" "node:24-bookworm-slim" "fd-find" "extended-keys" "gcc g++" "neovim/neovim/releases/download/v0.12.4" "nvim-linux-arm64" "lua-language-server-3.19.1" "pyright@1.1.414" "typescript-language-server@6.0.1" "vscode-langservers-extracted@4.10.0" "yaml-language-server@1.24.0"; do
+for pin in "herdr.*v0.8.0" "treehouse-v2.1.1" "no-mistakes-v1.84.0" "mise-v2026.9.10" "pi-coding-agent@0.85.1" "@opencode/cli@2.0.16" "tasks-axi@0.2.5" "gh-axi@0.1.30" "chrome-devtools-axi@0.1.29" "quota-axi@0.1.43" "lavish-axi@0.1.50" "node:24-bookworm-slim" "fd-find" "extended-keys" "gcc g++" "neovim/neovim/releases/download/v0.12.4" "nvim-linux-arm64" "lua-language-server-3.19.1" "pyright@1.1.414" "typescript-language-server@6.0.1" "vscode-langservers-extracted@4.10.0" "yaml-language-server@1.24.0"; do
   grep -q "$pin" "$BENCH/Dockerfile" \
     && pass "Dockerfile pins $pin" \
     || fail "Dockerfile missing pin $pin"

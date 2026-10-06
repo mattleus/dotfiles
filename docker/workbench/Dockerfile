@@ -59,10 +59,10 @@ RUN set -eu; \
 RUN set -eu; \
   case "$TARGETARCH" in \
     arm64) A=arm64; TH_SHA=980367c0233274eb3181a19a2ca8ec69d09b4a588ba27367937d336f9a2c938e; \
-            NM_SHA=92f402654bdea845ded9cebca41fd565e2ae654bb81c9ce2282e0a2610df8736; \
+            NM_SHA=8d8cefd927b7f921c207e4dd6c575081dc255dc068f0205f74b52e482bf2f7ab; \
             MISE_SHA=1b46a14314c18f9bbce4bf6f88cc1fb3b31be8dd2b23327a851555f4e144fc61 ;; \
     amd64) A=amd64; TH_SHA=2fe3e01220ae51a967c3e5ba6ccf10ec83bdbae8e420368d194285a8d04c9ef8; \
-           NM_SHA=c226b69b8b8115827d2e438ea8b32eaff9b89291a1d2fddc5ef2449017b8d927; \
+           NM_SHA=b0fb8a9df412c5fa1fb92a3584ffa1d4d5b4d6e0d1738efa2f8b88320f8bf1c2; \
            MISE_SHA=f917e52216924ef0a8b4eca3f7004dfcff3b94665716ac5685fd53006a491eee ;; \
     *) echo "unsupported TARGETARCH $TARGETARCH" >&2; exit 1 ;; \
   esac; \
@@ -70,7 +70,7 @@ RUN set -eu; \
   echo "$TH_SHA  /tmp/treehouse.tgz" | sha256sum -c -; \
   tar xzf /tmp/treehouse.tgz -C /tmp treehouse; \
   install -m 0755 /tmp/treehouse /usr/local/bin/treehouse; \
-  curl -fsSL "https://github.com/kunchenguid/no-mistakes/releases/download/v1.72.0/no-mistakes-v1.72.0-linux-$A.tar.gz" -o /tmp/no-mistakes.tgz; \
+  curl -fsSL "https://github.com/kunchenguid/no-mistakes/releases/download/v1.84.0/no-mistakes-v1.84.0-linux-$A.tar.gz" -o /tmp/no-mistakes.tgz; \
   echo "$NM_SHA  /tmp/no-mistakes.tgz" | sha256sum -c -; \
   tar xzf /tmp/no-mistakes.tgz -C /tmp no-mistakes; \
   install -m 0755 /tmp/no-mistakes /usr/local/bin/no-mistakes; \
@@ -83,7 +83,7 @@ RUN set -eu; \
   install -m 0755 /tmp/mise /usr/local/bin/mise; \
   rm /tmp/treehouse.tgz /tmp/treehouse /tmp/no-mistakes.tgz /tmp/no-mistakes /tmp/mise; \
   treehouse --version | grep -q "2.1.1"; \
-  no-mistakes --version | grep -q "v1.72.0"; \
+  no-mistakes --version | grep -q "v1.84.0"; \
   mise --version | grep -q "2026.9.10"
 
 # Neovim: the host's own editor setup runs in the sandbox too. The authored

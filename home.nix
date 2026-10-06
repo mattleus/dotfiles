@@ -275,7 +275,10 @@ in
   # uses an absolute path instead of relying on PATH lookup - a bare `npm` or `command -v gh-axi`
   # here silently can't find anything and either no-ops or errors out with "command not found".
   home.activation.installNoMistakes = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    if [ ! -x "$HOME/.local/bin/no-mistakes" ]; then
+    # The installer always fetches the latest release, so a fresh install lands current;
+    # but a host that installed back when the fleet ran v1.72.0 never moves on its own
+    # (updates are a manual `no-mistakes update`), so also reinstall over that old binary.
+    if [ ! -x "$HOME/.local/bin/no-mistakes" ] || "$HOME/.local/bin/no-mistakes" --version 2>/dev/null | grep -q "v1.72.0"; then
       run mkdir -p "$HOME/.local/bin"
       # Prefixing PATH= onto just the pipeline's first stage only sets it for that command;
       # `sh` on the far side of the pipe would still see the unmodified ambient PATH and pick
