@@ -78,12 +78,6 @@ in
       # see home/env.local in .gitignore. Add new ones there as future needs come up.
       [ -f "${dotfiles}/home/env.local" ] && source "${dotfiles}/home/env.local"
 
-      # colima runs the docker daemon in a lightweight VM; make sure it's up when a
-      # shell starts. Skips entirely when already running. `&!` backgrounds and disowns
-      # so a cold start (booting the VM, or the one-time image download) never blocks
-      # a new prompt; a `docker` command that races the boot just needs a retry.
-      ( command -v colima &>/dev/null && ! colima status &>/dev/null && colima start &>/dev/null ) &!
-
       # Create a new branch and immediately publish it to origin with upstream set.
       branch() { git checkout -b "$1" && git push -u origin HEAD; }
     '';
@@ -236,16 +230,6 @@ in
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.pi/agent/models.json";
   home.file.".pi/agent/settings.json".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.pi/agent/settings.json";
-
-  # workbench: the disposable agent workstation container on colima's docker VM
-  # (see docker/workbench/ and the README) - sandbox for pi, opencode, and the
-  # firstmate fleet, also carrying nvim (+ its repo-authored config and LSP
-  # servers) and the staged herdr config, replacing the retired pi-box/agentbox.
-  # Repo-authored script, linked into ~/.local/bin (already on PATH via
-  # home.sessionPath) like any other authored file - editing it here is live,
-  # no rebuild needed.
-  home.file.".local/bin/workbench".source =
-    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.local/bin/workbench";
 
   home.file.".claude/CLAUDE.md".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/AGENTS.md";

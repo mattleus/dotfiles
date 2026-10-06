@@ -104,7 +104,7 @@ test_zero_coupling_and_state_file() {
 
   # The operational marker and upstream runtime surfaces must not exist in the
   # shipped extension or its tests. The repo README legitimately discusses the
-  # wider firstmate/workbench toolchain and is not Calm documentation.
+  # wider firstmate toolchain and is not Calm documentation.
   for file in $source_files "$ROOT/tests/pi-calm.test.sh" "$ROOT/tests/lib.sh"; do
 
     assert_not_contains "$(cat "$file")" "$pat_fm_home" "$file mentions $pat_fm_home"

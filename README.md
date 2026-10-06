@@ -47,7 +47,7 @@ Change the host label or CPU architecture if needed, and read the Homebrew clean
 ./bootstrap.sh
 ```
 
-`bootstrap.sh` does five things, in order:
+`bootstrap.sh` does four things, in order:
 
 1. Installs Determinate Nix, if it isn't already installed.
 2. Symlinks this repo to `~/.dotfiles`.
@@ -55,9 +55,6 @@ Change the host label or CPU architecture if needed, and read the Homebrew clean
 3. Checks the `user` configured in `flake.nix` against your actual macOS username, and offers to fix it for you if they differ.
 4. Runs the first `darwin-rebuild switch`.
    It fetches the `darwin-rebuild` tool from the nix-darwin 26.05 release branch, then applies this repo's locked flake config.
-5. Sizes the colima VM for the workbench (8 vCPU / 20 GiB / 100 GiB, vz + virtiofs + mount-inotify).
-   If the VM is already running at a different size, bootstrap just prints the resize command for a convenient moment instead of restarting it (a restart pauses other containers on the VM).
-
 After that, `darwin-rebuild` exists and you're on the normal workflow below.
 
 ### Validate without applying
@@ -126,7 +123,7 @@ If you don't use Whip, remove the `enableSshd` activation script and the whip fl
 Each block checks whether its tool is already on `PATH` (or the clone directory already exists) before doing anything, so re-running `rebuild.sh` is a no-op once installed.
 Remove these blocks from your copy if you don't use firstmate.
 
-**About opencode:** unlike the tools above, opencode *does* have a Homebrew formula and a nixpkgs package. It's still installed via `home.activation.installOpenCode` (the official **v2** installer into `~/.opencode/bin`, added to PATH by `home.sessionPath`) so that its in-app self-update works - a Nix store install is read-only and the updater can't replace it, so opencode stays out of `home.packages`. The activation also reinstalls over a v1 binary, since v1 only self-updates within the v1 track. The configs (`home/.config/opencode/opencode.jsonc` and the sandbox copy under `docker/workbench/config/opencode/`) are authored in the v2 schema (`providers`, `permissions` rules array, `update`).
+**About opencode:** unlike the tools above, opencode *does* have a Homebrew formula and a nixpkgs package. It's still installed via `home.activation.installOpenCode` (the official **v2** installer into `~/.opencode/bin`, added to PATH by `home.sessionPath`) so that its in-app self-update works - a Nix store install is read-only and the updater can't replace it, so opencode stays out of `home.packages`. The activation also reinstalls over a v1 binary, since v1 only self-updates within the v1 track. The config (`home/.config/opencode/opencode.jsonc`) is authored in the v2 schema (`providers`, `permissions` rules array, `update`).
 
 **Heads-up:**
 
@@ -186,49 +183,9 @@ Both packages execute with your full user permissions and must be trusted like a
 
 Home Manager deliberately does not manage `~/.pi/agent` itself, or Pi authentication, sessions, trust decisions, caches, npm/git package trees, or any other runtime state. The model overrides contain no credentials or endpoint settings, do not choose a default model, and only take effect after you authenticate Pi yourself. This remains an additive post-video layer: it does not install Pi, a launcher, or package source code into this repository.
 
-## workbench: the sandboxed agent workstation in a container
-
-`workbench` runs the coding agents (pi, opencode) and the whole firstmate fleet inside one disposable container on colima's docker VM, so a full-power agent session can't damage the Mac beyond recovery. The container plus its mount topology is the only load-bearing boundary; guardrails (opencode permission denies, a pre-push tripwire, and GitHub branch protection) sit on top and never stand alone. This replaces the retired `pi-box`/`agentbox` pair.
-
-```sh
-workbench up                  # builds the image if it changed, starts the container, verifies ssh,
-                              # warns on dirty ~/work trees, prints usage
-workbench pi [repo]           # pi TUI in a tmux session, cd'd to the repo (current directory, or name under ~/work, or path)
-workbench pi-review [repo]    # pi with --tools read,grep,find,ls: no write path, review mode
-workbench opencode [repo]     # same, for opencode
-workbench ssh                 # zsh login as agent, landing in the fleet home (~/.firstmate) - enter the fleet here
-workbench herdr [args]        # ssh straight into herdr inside the sandbox; pi/opencode launched from it
-                              # inherit the injected session secrets
-workbench stop                # stop; durable state lives in host mounts + named volumes
-workbench status              # container, ssh reachability, credential readiness, env hygiene
-```
-
-The terminal stack is split on purpose: WezTerm stays on the host as display/transport only, while herdr and tmux run inside the sandbox. Use `workbench herdr` when you want the local-like flow of starting herdr first and launching pi/opencode from inside it. WezTerm is deliberately not installed in the workbench image.
-
-Each terminal pane gets its own agent session per tool+repo: the tmux session is named `<tool>-<repo>-<pane>` where the pane key comes from `$HERDR_PANE_ID` (Herdr 0.7.5+), else `$TMUX_PANE` on a host tmux pane, else the wrapper's PID. Several panes may therefore run agents in the same repo at once, and re-running the same command in the same pane rejoins that pane's agent (sessions persist across ssh drops; detach with `C-b d`).
-
-The colima VM the workbench expects is **8 vCPU / 20 GiB / 100 GiB disk** (`colima start --cpu 8 --memory 20 --disk 100 --vm-type vz --mount-type virtiofs --mount-inotify`; a restart of the current VM to resize it pauses any other containers on it, e.g. dataharness). The wrapper never starts or reconfigures the VM.
-
-Boundary: read-write bind mounts at the SAME absolute paths as the host - `~/work`, `~/repos/github/cohere-ai`, `~/repos/github/reliant-ai` (symlink targets of `~/work/*`), the firstmate code root (`~/firstmate`), the fleet home (`~/.firstmate`, FM_HOME: state/data/config/`projects/` clones), `~/.treehouse` (linked worktrees), and `~/Documents/agent_reports` (agent research/report output, readable on the host). Caches and toolchains live in named volumes (`workbench-pi-agent`, `workbench-opencode-data`, `workbench-npm-cache`, `workbench-pnpm-cache`, `workbench-mise`, plus `workbench-nvim-data`/`workbench-nvim-state` holding nvim's plugins, compiled treesitter parsers, and undo history) - all disposable, all surviving `docker rm`. The agent user is uid 501 with `HOME=/Users/matt`, so paths spell identically inside and out. Never mounted or injected: `~/.secrets`, `~/.ssh`, `~/.config/gh`, `~/.docker`, cloud creds, browser profiles, any `auth.json`, and never `docker.sock`. Shell niceties the agents need are pre-baked: `fd`, herdr's repo-authored config (staged from `home/.config/herdr/`), your nvim with the repo-authored config (staged from `home/.config/nvim/`, two pinned binaries + the same five LSP servers the host gets from nix, `EDITOR=nvim`), a zsh prompt that shows only the trailing cwd folder, pi's `rose-pine-moon` theme (staged from `home/.pi/agent/themes/`), tmux `extended-keys always` + the `extkeys` terminal feature (so Shift+Enter/kitty-protocol key requests survive from the host terminal through to sandbox agent TUIs), and the mattpocock skills pack (canonical copy at `~/.agents/skills`, per-agent links at `~/.pi/agent/skills` and `~/.config/opencode/skills` - the image-init backfills those links for volumes or containers created before the pack was baked).
-
-Secrets live as macOS keychain generic passwords, injected **per session** (`docker exec -e` / ssh `SetEnv`) by the wrapper, so the container-wide environment stays secret-free (`docker inspect` shows nothing; the value dies with the session's process tree):
-
-- `COHERE_API_KEY` (required): resolved per session from the login keychain, else from the dotfiles `home/env.local` (gitignored machine file - `home.nix`'s zsh sources it). `workbench up` reconciles env.local's value into the keychain each run, so an edited env.local takes effect at the next `up`. With neither, the first session asks once - paste from Bitwarden - and stores it as `security add-generic-password -s COHERE_API_KEY -a "$USER" -w`. (Critical pitfall the wrapper exists for: if the var is *unset*, opencode's `{env:...}` substitution yields an empty string and its `auth.json` fallback does NOT activate.)
-- GitHub auth is per-owner by default, no keychain item needed: the wrapper reads the tokens of the host `gh` accounts and injects `GH_TOKEN_{COHERE,RELIANT,PERSONAL}` per session (ambient `GH_TOKEN` = the personal account). Inside the box a baked `gh` shim (`/usr/local/bin/gh`, chosen before the real binary by PATH order) and a git credential helper route every call to the owning account's token - needed because the fleet spans GitHub owners (cohere-ai, Reliant-AI, mattleus) that no single account or fine-grained PAT can all reach. A missing host login for an owner warns at session start and shows in `status`.
-- `sandbox-gh-token` (optional override): a dedicated PAT (`security add-generic-password -s sandbox-gh-token -a "$USER" -w "ghp_..."`). When present it becomes the single `GH_TOKEN` for every owner and per-owner dispatch is skipped - only use it if some account genuinely reaches everything (today, none does).
-
-Git pushes from inside are HTTPS-only: a baked `/etc/gitconfig` rewrites `git@github.com:` and the host's ssh-alias remotes to `https://github.com/` and serves auth per owner via `workbench-gh-cred` (no ssh keys, no agent forwarding). If gh ever can't infer the repo from a rewritten alias remote, spell it out (`gh pr create --repo owner/repo`). Commits use the host's global git identity, written to the container's `~/.gitconfig` at every `up`.
-
-Conventions the boundary relies on: commit/stash before handing a mounted repo to an agent (`up` scans `~/work` heads-up style; `pi`/`opencode <repo>` warn per-repo), review diffs in the host editor, and PR-first delivery for fleet work. Branch protection denying force-push + deletion on fleet-target repos' default branches is the one enforcement point outside the container; a baked pre-push tripwire (honestly labeled a speed bump - `--no-verify` bypasses it) catches the reflex inside.
-
-The image (`docker/workbench/Dockerfile`: Node 24, git, gh, ripgrep, tmux, mise, sha256-pinned herdr/treehouse/no-mistakes/neovim/lua-language-server, pinned pi + opencode + axi CLIs, npm-pinned LSP servers) builds on `up` and rebuilds automatically whenever its inputs change; the container recreates when the image or the wrapper changes. Baked secret-free configs (pi settings/models, sandboxed `opencode.jsonc` with the guardrail permission block, herdr's config.toml, the nvim config tree) seed into place only when absent, so runtime changes survive image rebuilds - and `docker rm` re-seeds from the image, which is the point.
-
-Human one-time items live outside this repo by design (bootstrap can't set them declaratively): the two keychain entries above, branch protection flipping on org repos where you lack admin, and firstmate's per-clone trust approvals. `up` also generates a dedicated ed25519 keypair at `~/.config/workbench/id_workbench` purely for host-to-container ssh.
-
 ## Notes
 
-The first time you launch `nvim`, it bootstraps [lazy.nvim](https://github.com/folke/lazy.nvim) by cloning plugins from GitHub.
-That needs network access once; after that it's offline. The same applies to nvim inside the workbench - the plugins, compiled treesitter parsers, and undo history live in disposable named volumes, so the bootstrap runs once per volume lifetime, not per container.
+The first time you launch `nvim`, it bootstraps [lazy.nvim](https://github.com/folke/lazy.nvim) by cloning plugins from GitHub. That needs network access once; after that it's offline.
 Neovim and WezTerm both use the rose-pine moon theme.
 Neovim keeps italics off and uses a transparent background on macOS, Windows, and WSL so it matches the terminal setup.
 
