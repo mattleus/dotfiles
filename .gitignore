@@ -33,6 +33,7 @@ result-*
 /docker/workbench/config/pi-agent/
 /docker/workbench/config/herdr/
 /docker/workbench/config/nvim/
+/docker/workbench/config/opencode/
 
 # opencode skills are installed at runtime by the skills CLI (see installMattPocockSkills
 # in home.nix) into ~/.config/opencode, which symlinks into this repo - never commit them.

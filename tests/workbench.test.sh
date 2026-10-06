@@ -19,6 +19,9 @@ set -u
 
 BENCH="$ROOT/docker/workbench"
 WRAPPER="$ROOT/home/.local/bin/workbench"
+OPENCODE_GENERATOR="$BENCH/generate-opencode-config.mjs"
+OPENCODE_TEST_DIR="$(dotfiles_test_tmproot workbench-opencode)"
+OPENCODE_CONFIG="$OPENCODE_TEST_DIR/opencode.jsonc"
 
 # --- shell syntax --------------------------------------------------------------
 bash -n "$WRAPPER" \
@@ -43,9 +46,16 @@ else
   pass "pi models.json apiKey values are env references only"
 fi
 
-# --- baked opencode config: parses, carries the sandbox guardrails (v2 schema) ---
+# --- generated opencode config: parses, carries the sandbox guardrails (v2 schema) ---
+node --check "$OPENCODE_GENERATOR" \
+  && pass "opencode config generator parses" \
+  || fail "opencode config generator syntax"
+node "$OPENCODE_GENERATOR" \
+  "$ROOT/home/.config/opencode/opencode.jsonc" "$OPENCODE_CONFIG" \
+  && pass "opencode config generator produces the workbench config" \
+  || fail "opencode config generator"
 oc_parse="$(node -e "
-  const src = require('fs').readFileSync('$BENCH/config/opencode/opencode.jsonc', 'utf8');
+  const src = require('fs').readFileSync('$OPENCODE_CONFIG', 'utf8');
   // JSONC subset used here is a JS object literal; evaluates without executing code.
   const o = (new Function('return (' + src + ')'))();
   console.log(JSON.stringify({permissions: o.permissions, providers: Object.keys(o.providers || {}), update: o.update, websearch: o.websearch}));
@@ -53,6 +63,18 @@ oc_parse="$(node -e "
 [ -n "$oc_parse" ] \
   && pass "opencode.jsonc parses (JSONC literal)" \
   || fail "opencode.jsonc parse"
+
+provider_parity="$(node -e "
+  const fs = require('fs');
+  const parse = f => (new Function('return (' + fs.readFileSync(f, 'utf8') + ')'))();
+  const host = parse('$ROOT/home/.config/opencode/opencode.jsonc');
+  const workbench = parse('$OPENCODE_CONFIG');
+  if (JSON.stringify(host.providers) !== JSON.stringify(workbench.providers)) process.exit(1);
+  console.log(Object.keys(host.providers).join(', '));
+" 2>/dev/null)"
+[ -n "$provider_parity" ] \
+  && pass "generated workbench provider configuration matches host ($provider_parity)" \
+  || fail "generated workbench provider configuration differs from host"
 
 for needle in \
   '{"action":"shell","resource":"git push --force*","effect":"deny"}' \
@@ -79,7 +101,7 @@ case "$oc_parse" in
   *) fail "opencode.jsonc missing the .env read-deny" ;;
 esac
 dl="$(node -e "
-  for (const f of ['$BENCH/config/opencode/opencode.jsonc','$ROOT/home/.config/opencode/opencode.jsonc']) {
+  for (const f of ['$OPENCODE_CONFIG','$ROOT/home/.config/opencode/opencode.jsonc']) {
     const o = (new Function('return (' + require('fs').readFileSync(f,'utf8') + ')'))();
     (o.permissions||[]).forEach(r => console.log(r.action));
   }
@@ -162,6 +184,9 @@ grep -q '/docker/workbench/config/herdr/' "$ROOT/.gitignore" \
 grep -q '/docker/workbench/config/nvim/' "$ROOT/.gitignore" \
   && pass "staged nvim config build context is gitignored" \
   || fail "staged nvim config build context not gitignored"
+grep -q '/docker/workbench/config/opencode/' "$ROOT/.gitignore" \
+  && pass "generated opencode config build context is gitignored" \
+  || fail "generated opencode config build context not gitignored"
 if grep -q 'find-generic-password\|env.local' "$WRAPPER"; then
   pass "wrapper reads secrets from the keychain or env.local"
 else
@@ -179,6 +204,12 @@ grep -q 'home/.config/herdr/config.toml' "$WRAPPER" \
 grep -q 'home/.config/nvim' "$WRAPPER" \
   && pass "wrapper stages nvim config into the build context" \
   || fail "wrapper does not stage nvim config"
+grep -q 'generate-opencode-config.mjs' "$WRAPPER" \
+  && pass "wrapper generates opencode config from the host config" \
+  || fail "wrapper does not generate opencode config"
+grep -q 'config/opencode/opencode.jsonc' "$WRAPPER" \
+  && pass "wrapper includes generated opencode config in the image hash" \
+  || fail "generated opencode config is missing from the image hash"
 grep -qF 'find "$bench_dir/config/nvim"' "$WRAPPER" \
   && pass "wrapper rebuilds the image when the nvim config changes" \
   || fail "nvim config missing from the image build-hash inputs"

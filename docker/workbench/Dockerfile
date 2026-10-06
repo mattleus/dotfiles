@@ -156,8 +156,8 @@ RUN install -d /Users \
 # Baked, secret-free configs. pi settings.json/models.json are staged copies of
 # home/.pi/agent/ (apiKey values are $COHERE_API_KEY env references, never
 # values); herdr config.toml is the repo-authored in-sandbox session-surface
-# config; opencode.jsonc is authored for the sandbox (host config + the baked
-# permission guardrails; providers resolve {env:COHERE_API_KEY}); config/nvim/
+# config; opencode.jsonc is generated from the host config with the baked
+# sandbox permission policy (providers resolve {env:COHERE_API_KEY}); config/nvim/
 # is the staged copy of the host's authored home/.config/nvim (init.lua, lua/,
 # and the plugin lockfiles). workbench-init seeds these into place only when
 # absent, so runtime changes survive image rebuilds. No auth file is baked or

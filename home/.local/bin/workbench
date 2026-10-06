@@ -354,9 +354,10 @@ if [ "$cmd" = "up" ]; then
   fi
 
   # Stage the authored pi + herdr + nvim configs (single source of truth under
-  # home/) into the build context; the Dockerfile COPYs them and never reaches
-  # outside it. config/{pi-agent,herdr,nvim}/ are gitignored - the staged files
-  # are derived artifacts. nvim stages a whole tree, so restage it clean: a
+  # home/) and generate the sandbox opencode config from the host config. The
+  # Dockerfile COPYs them and never reaches outside the build context.
+  # config/{pi-agent,herdr,nvim,opencode}/ are gitignored derived artifacts.
+  # nvim stages a whole tree, so restage it clean: a
   # file dropped on the host must not linger in the staged copy.
   mkdir -p "$bench_dir/config/pi-agent/themes" "$bench_dir/config/herdr"
   cp "$repo_root/home/.config/herdr/config.toml" "$bench_dir/config/herdr/config.toml"
@@ -367,14 +368,18 @@ if [ "$cmd" = "up" ]; then
   fi
   rm -rf "$bench_dir/config/nvim"
   cp -R "$repo_root/home/.config/nvim" "$bench_dir/config/nvim"
+  node "$bench_dir/generate-opencode-config.mjs" \
+    "$repo_root/home/.config/opencode/opencode.jsonc" \
+    "$bench_dir/config/opencode/opencode.jsonc"
 
   # Rebuild only when the build inputs changed: their combined sha256 is stored
   # on the image as a label at build time, compared against the files on disk
   # on each run.
   want_hash="$(
     { shasum -a 256 "$dockerfile" "$init_script" \
-        "$bench_dir/config/herdr/config.toml" \
+        "$bench_dir/generate-opencode-config.mjs" \
         "$bench_dir/config/opencode/opencode.jsonc" \
+        "$bench_dir/config/herdr/config.toml" \
         "$bench_dir/git-template/hooks/pre-push" ;
       find "$bench_dir/config/pi-agent" -type f ! -name .DS_Store | sort | xargs shasum -a 256 ;
       find "$bench_dir/config/nvim" -type f ! -name .DS_Store | sort | xargs shasum -a 256 ;
