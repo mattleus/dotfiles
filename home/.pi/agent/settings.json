@@ -5,8 +5,8 @@
   "terminal": {
     "showImages": false
   },
-  "defaultProvider": "oss-model-vault-v2",
-  "defaultModel": "kimi-k3-gb200",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.6-luna",
   "defaultThinkingLevel": "high",
   "hideThinkingBlock": true,
   "quietStartup": true,
