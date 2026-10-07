@@ -305,8 +305,8 @@ in
       run "$npm" install -g lavish-axi
       run /opt/homebrew/bin/lavish-axi setup hooks
     fi
-    if [ ! -x /opt/homebrew/bin/tasks-axi ]; then
-      run "$npm" install -g tasks-axi
+    if [ ! -x /opt/homebrew/bin/tasks-axi ] || ! /opt/homebrew/bin/tasks-axi --version 2>/dev/null | grep -q "0.2.6"; then
+      run "$npm" install -g tasks-axi@0.2.6
     fi
     if [ ! -x /opt/homebrew/bin/quota-axi ]; then
       run "$npm" install -g quota-axi

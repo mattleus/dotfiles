@@ -1,6 +1,14 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "share": "disabled",
+  "permission": {
+    "external_directory": {
+      "~/.firstmate": "allow",
+      "~/.firstmate/**": "allow",
+      "~/.treehouse": "allow",
+      "~/.treehouse/**": "allow"
+    }
+  },
   // v2: update replaces v1's autoupdate - "auto" installs updates,
   // "notify" only says one exists, "disable" skips checks.
   "update": "auto",
