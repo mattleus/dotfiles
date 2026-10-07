@@ -78,12 +78,6 @@ in
       # see home/env.local in .gitignore. Add new ones there as future needs come up.
       [ -f "${dotfiles}/home/env.local" ] && source "${dotfiles}/home/env.local"
 
-      # colima runs the docker daemon in a lightweight VM; make sure it's up when a
-      # shell starts. Skips entirely when already running. `&!` backgrounds and disowns
-      # so a cold start (booting the VM, or the one-time image download) never blocks
-      # a new prompt; a `docker` command that races the boot just needs a retry.
-      ( command -v colima &>/dev/null && ! colima status &>/dev/null && colima start &>/dev/null ) &!
-
       # Create a new branch and immediately publish it to origin with upstream set.
       branch() { git checkout -b "$1" && git push -u origin HEAD; }
     '';
@@ -237,16 +231,6 @@ in
   home.file.".pi/agent/settings.json".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.pi/agent/settings.json";
 
-  # workbench: the disposable agent workstation container on colima's docker VM
-  # (see docker/workbench/ and the README) - sandbox for pi, opencode, and the
-  # firstmate fleet, also carrying nvim (+ its repo-authored config and LSP
-  # servers) and the staged herdr config, replacing the retired pi-box/agentbox.
-  # Repo-authored script, linked into ~/.local/bin (already on PATH via
-  # home.sessionPath) like any other authored file - editing it here is live,
-  # no rebuild needed.
-  home.file.".local/bin/workbench".source =
-    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.local/bin/workbench";
-
   home.file.".claude/CLAUDE.md".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/AGENTS.md";
   home.file.".codex/AGENTS.md".source =
@@ -282,15 +266,17 @@ in
 
   # opencode: deliberately NOT a nixpkgs package or Homebrew formula (it has both) so that its
   # in-app self-update works - opencode prompts when a new version exists and re-runs its own
-  # installer, which needs a user-writable binary. The official v2 installer puts it in
-  # ~/.opencode/bin with --no-modify-path (home.sessionPath above adds it to PATH declaratively,
-  # so the installer never touches shell config files). Guarded on the binary already existing
-  # AND already being v2 (v1 self-updates only within the v1 track, hence the version check);
-  # from then on opencode owns its own updates and rebuilds are no-ops apart from that check.
+  # installer, which needs a user-writable binary. Deliberately pinned to the v1 track: the v1
+  # installer (https://opencode.ai/install, no /v2 prefix) fetches the pinned release binary from
+  # GitHub releases into ~/.opencode/bin with --no-modify-path (home.sessionPath above adds it
+  # to PATH declaratively, so the installer never touches shell config files). Guarded on the
+  # binary already existing AND already being v1 (v2 self-updates only within the v2 track,
+  # hence the version check); from then on opencode owns its own updates (within the v1 track)
+  # and rebuilds are no-ops apart from that check.
   home.activation.installOpenCode = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    if [ ! -x "$HOME/.opencode/bin/opencode" ] || ! "$HOME/.opencode/bin/opencode" --version 2>/dev/null | grep -Eq '(^| )v?2\.'; then
+    if [ ! -x "$HOME/.opencode/bin/opencode" ] || ! "$HOME/.opencode/bin/opencode" --version 2>/dev/null | grep -Eq '(^| )v?1\.'; then
       run mkdir -p "$HOME/.opencode/bin"
-      run bash -c "curl -fsSL https://opencode.ai/v2/install | bash -s -- --no-modify-path"
+      run bash -c "curl -fsSL https://opencode.ai/install | bash -s -- --version 1.18.34 --no-modify-path"
     fi
   '';
 
@@ -349,8 +335,8 @@ in
       run "$npm" install -g lavish-axi
       run /opt/homebrew/bin/lavish-axi setup hooks
     fi
-    if [ ! -x /opt/homebrew/bin/tasks-axi ]; then
-      run "$npm" install -g tasks-axi
+    if [ ! -x /opt/homebrew/bin/tasks-axi ] || ! /opt/homebrew/bin/tasks-axi --version 2>/dev/null | grep -q "0.2.6"; then
+      run "$npm" install -g tasks-axi@0.2.6
     fi
     if [ ! -x /opt/homebrew/bin/quota-axi ]; then
       run "$npm" install -g quota-axi
