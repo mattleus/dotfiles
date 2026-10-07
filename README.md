@@ -123,7 +123,7 @@ If you don't use Whip, remove the `enableSshd` activation script and the whip fl
 Each block checks whether its tool is already on `PATH` (or the clone directory already exists) before doing anything, so re-running `rebuild.sh` is a no-op once installed.
 Remove these blocks from your copy if you don't use firstmate.
 
-**About opencode:** unlike the tools above, opencode *does* have a Homebrew formula and a nixpkgs package. It's still installed via `home.activation.installOpenCode` (the official **v2** installer into `~/.opencode/bin`, added to PATH by `home.sessionPath`) so that its in-app self-update works - a Nix store install is read-only and the updater can't replace it, so opencode stays out of `home.packages`. The activation also reinstalls over a v1 binary, since v1 only self-updates within the v1 track. The config (`home/.config/opencode/opencode.jsonc`) is authored in the v2 schema (`providers`, `permissions` rules array, `update`).
+**About opencode:** unlike the tools above, opencode *does* have a Homebrew formula and a nixpkgs package. It's still installed via `home.activation.installOpenCode` (the official **v1** installer into `~/.opencode/bin`, added to PATH by `home.sessionPath`) so that its in-app self-update works - a Nix store install is read-only and the updater can't replace it, so opencode stays out of `home.packages`. It's deliberately pinned to the **v1** track (`--version 1.18.34`, the latest v1 release, fetched from GitHub releases). The activation also reinstalls over a v2 binary, since v2 only self-updates within the v2 track. The config (`home/.config/opencode/opencode.jsonc`) is authored in the v1 schema (`provider`, `autoupdate`, flat `mcp` map).
 
 **Heads-up:**
 

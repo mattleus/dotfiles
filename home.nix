@@ -238,15 +238,17 @@ in
 
   # opencode: deliberately NOT a nixpkgs package or Homebrew formula (it has both) so that its
   # in-app self-update works - opencode prompts when a new version exists and re-runs its own
-  # installer, which needs a user-writable binary. The official v2 installer puts it in
-  # ~/.opencode/bin with --no-modify-path (home.sessionPath above adds it to PATH declaratively,
-  # so the installer never touches shell config files). Guarded on the binary already existing
-  # AND already being v2 (v1 self-updates only within the v1 track, hence the version check);
-  # from then on opencode owns its own updates and rebuilds are no-ops apart from that check.
+  # installer, which needs a user-writable binary. Deliberately pinned to the v1 track: the v1
+  # installer (https://opencode.ai/install, no /v2 prefix) fetches the pinned release binary from
+  # GitHub releases into ~/.opencode/bin with --no-modify-path (home.sessionPath above adds it
+  # to PATH declaratively, so the installer never touches shell config files). Guarded on the
+  # binary already existing AND already being v1 (v2 self-updates only within the v2 track,
+  # hence the version check); from then on opencode owns its own updates (within the v1 track)
+  # and rebuilds are no-ops apart from that check.
   home.activation.installOpenCode = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    if [ ! -x "$HOME/.opencode/bin/opencode" ] || ! "$HOME/.opencode/bin/opencode" --version 2>/dev/null | grep -Eq '(^| )v?2\.'; then
+    if [ ! -x "$HOME/.opencode/bin/opencode" ] || ! "$HOME/.opencode/bin/opencode" --version 2>/dev/null | grep -Eq '(^| )v?1\.'; then
       run mkdir -p "$HOME/.opencode/bin"
-      run bash -c "curl -fsSL https://opencode.ai/v2/install | bash -s -- --no-modify-path"
+      run bash -c "curl -fsSL https://opencode.ai/install | bash -s -- --version 1.18.34 --no-modify-path"
     fi
   '';
 
