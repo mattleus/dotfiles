@@ -11,7 +11,7 @@
   },
   // v1: autoupdate = true auto-installs updates, "notify" only says one
   // exists, false skips checks. (v2 renamed this to "update".)
-  "autoupdate": true,
+  "autoupdate": false,
   "model": "cohere-agent-gateway/gpt-5.6-luna",
   "provider": {
     "cohere-oss": {
