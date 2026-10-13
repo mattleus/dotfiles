@@ -372,6 +372,29 @@ in
     fi
   '';
 
+  # The interactive-explainer skill lives with its source repo rather than in the
+  # mattpocock skill pack. Clone it into the standard repo layout when a machine
+  # does not have it yet, then expose the skill through OpenCode's universal path.
+  home.activation.installInteractiveExplainerSkill = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    explainersDir="$HOME/repos/github/cohere-ai/abusque-explainers"
+    skillLink="$HOME/.agents/skills/interactive-explainer"
+
+    if [ ! -e "$explainersDir" ]; then
+      run mkdir -p "$(dirname "$explainersDir")"
+      run /usr/bin/git clone git@github.com:cohere-ai/abusque-explainers.git "$explainersDir"
+    elif [ ! -d "$explainersDir/skill" ]; then
+      echo "Expected interactive-explainer skill at $explainersDir/skill" >&2
+      exit 1
+    fi
+
+    if [ -e "$skillLink" ] && [ ! -L "$skillLink" ]; then
+      echo "Refusing to replace non-symlink $skillLink" >&2
+      exit 1
+    fi
+    run mkdir -p "$HOME/.agents/skills"
+    run ln -sfn "$explainersDir/skill" "$skillLink"
+  '';
+
   # Keep Markdown files associated with QuickMD through Launch Services. duti is a small
   # Homebrew utility because nix-darwin/home-manager do not expose a declarative file-association
   # option. The cask activation registers the app before this Home Manager activation runs.
