@@ -282,7 +282,8 @@ in
 
   # firstmate toolchain: none of these have a Homebrew formula or nixpkgs package, so they're
   # installed declaratively via home.activation instead of by hand. Each block guards on the
-  # tool already being present, so re-running `darwin-rebuild switch` is a no-op once installed.
+  # tool already being present, so re-running `darwin-rebuild switch` is a no-op once installed;
+  # pinned tools also reinstall when the installed version does not match.
   #
   # `darwin-rebuild switch` runs these under sudo's locked-down PATH (macOS secure_path), which
   # has neither Homebrew's nor Nix's bin dirs on it. Every guard and command below therefore
@@ -338,8 +339,8 @@ in
     if [ ! -x /opt/homebrew/bin/tasks-axi ] || ! /opt/homebrew/bin/tasks-axi --version 2>/dev/null | grep -q "0.2.6"; then
       run "$npm" install -g tasks-axi@0.2.6
     fi
-    if [ ! -x /opt/homebrew/bin/quota-axi ]; then
-      run "$npm" install -g quota-axi
+    if [ ! -x /opt/homebrew/bin/quota-axi ] || ! /opt/homebrew/bin/quota-axi --version 2>/dev/null | grep -q "0.1.61"; then
+      run "$npm" install -g quota-axi@0.1.61
     fi
   '';
 

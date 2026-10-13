@@ -119,7 +119,7 @@ Whip accepts herdr protocols 17-22 (herdr 0.8.0 reports 19).
 If you don't use Whip, remove the `enableSshd` activation script and the whip flake input/package - with them gone, no SSH server runs.
 
 **About the firstmate toolchain:** `treehouse` is a real Homebrew formula, so it's in the `brews` list like `herdr`.
-`no-mistakes`, `firstmate`, and the `*-axi` CLIs (`gh-axi`, `chrome-devtools-axi`, `lavish-axi`, `tasks-axi`, `quota-axi`) have no Homebrew formula or nixpkgs package, so `home.nix` installs them with `home.activation` blocks instead: `no-mistakes` via its own curl-piped install script, `firstmate` via `git clone` into `~/firstmate`, and the `*-axi` tools via `npm install -g` (which is why `nodejs` is in `home.packages`).
+`no-mistakes`, `firstmate`, and the `*-axi` CLIs (`gh-axi`, `chrome-devtools-axi`, `lavish-axi`, `tasks-axi`, `quota-axi`) have no Homebrew formula or nixpkgs package, so `home.nix` installs them with `home.activation` blocks instead: `no-mistakes` via its own curl-piped install script, `firstmate` via `git clone` into `~/firstmate`, and the `*-axi` tools via Homebrew's `npm` (which is why `nodejs` is in `home.packages`). `quota-axi` is pinned to npm release `0.1.61`; the activation reinstalls it if a different version is present.
 Each block checks whether its tool is already on `PATH` (or the clone directory already exists) before doing anything, so re-running `rebuild.sh` is a no-op once installed.
 Remove these blocks from your copy if you don't use firstmate.
 
