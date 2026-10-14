@@ -251,17 +251,22 @@ in
   '';
 
   # no-mistakes reads this machine-local config from ~/.no-mistakes. The
-  # default/fix pipeline roles stay on Pi; only unattended review and review
-  # fixes use the dedicated v1 worker binary above.
+  # default/fix pipeline roles stay on Pi. Review and review-fix agents moved
+  # to Pi because gate agents run in target checkouts, and a checkout carrying
+  # fleet-captain project instructions (AGENTS.md/CLAUDE.md, e.g. firstmate
+  # itself) needs a reviewer with a verified neutralization knob - opencode has
+  # none, so no-mistakes refused it there. The pinned v1 opencode worker above
+  # stays installed and referenced in agent_path_override in case a review role
+  # needs it again.
   home.file.".no-mistakes/config.yaml".text = ''
     agent: pi
     agent_path_override:
       opencode: ${config.home.homeDirectory}/.local/share/no-mistakes/opencode-v1.18.31/bin/opencode
     review_agents:
       reviewer:
-        agent: opencode
+        agent: pi
       fixer:
-        agent: opencode
+        agent: pi
   '';
 
   # opencode: deliberately NOT a nixpkgs package or Homebrew formula (it has both) so that its
