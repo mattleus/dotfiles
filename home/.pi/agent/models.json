@@ -74,6 +74,50 @@
           "contextWindow": 1048576,
           "maxTokens": 131072,
           "cost": { "input": 0.15, "output": 0.5, "cacheRead": 0.03, "cacheWrite": 0 }
+        },
+        {
+          "id": "deepseek-v4-1-flash",
+          "name": "DeepSeek V4.1 Flash",
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "minimal": null, "low": null, "medium": null, "high": "high", "xhigh": null, "max": null
+          },
+          "input": ["text", "image"],
+          "contextWindow": 1048576,
+          "maxTokens": 131072
+        },
+        {
+          "id": "mimo-v2-6-flash",
+          "name": "MiMo V2.6 Flash",
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "minimal": null, "low": null, "medium": null, "high": "high", "xhigh": null, "max": null
+          },
+          "input": ["text", "image"],
+          "contextWindow": 1048576,
+          "maxTokens": 131072
+        },
+        {
+          "id": "mimo-v2-6-pro",
+          "name": "MiMo V2.6 Pro",
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "minimal": null, "low": null, "medium": null, "high": "high", "xhigh": null, "max": null
+          },
+          "input": ["text", "image"],
+          "contextWindow": 1048576,
+          "maxTokens": 131072
+        },
+        {
+          "id": "kimi-k3-b200-pd-1p1d",
+          "name": "Kimi K3 (vLLM PD 1P1D)",
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "minimal": null, "low": null, "medium": null, "high": "high", "xhigh": null, "max": null
+          },
+          "input": ["text", "image"],
+          "contextWindow": 1048576,
+          "maxTokens": 32768
         }
       ]
     },
@@ -93,6 +137,37 @@
           "name": "Claude Opus 5",
           "reasoning": true
         }
+      ]
+    },
+    "cohere-agent-gateway": {
+      "name": "Cohere Agent Gateway",
+      "baseUrl": "https://llm-gateway-acp-prod.tail5566.ts.net/v1",
+      "api": "openai-completions",
+      "apiKey": "unused",
+      "models": [
+        { "id": "gpt-5.5", "name": "GPT-5.5" },
+        { "id": "gpt-5.6-luna", "name": "GPT-5.6 Luna" },
+        { "id": "gpt-5.6-sol", "name": "GPT-5.6 Sol" },
+        { "id": "gpt-5.6-terra", "name": "GPT-5.6 Terra" }
+      ]
+    },
+    "cohere-agent-gateway-chat": {
+      "name": "Cohere Agent Gateway",
+      "baseUrl": "https://llm-gateway-acp-prod.tail5566.ts.net/v1",
+      "api": "openai-completions",
+      "apiKey": "unused",
+      "models": [
+        { "id": "claude-opus-4-6", "name": "Claude Opus 4.6" },
+        { "id": "claude-opus-4-8", "name": "Claude Opus 4.8" },
+        { "id": "claude-opus-5", "name": "Claude Opus 5" },
+        { "id": "claude-opus-5-5", "name": "Claude Opus 5.5" },
+        { "id": "claude-sonnet-4-5", "name": "Claude Sonnet 4.5" },
+        { "id": "claude-sonnet-5", "name": "Claude Sonnet 5" },
+        { "id": "command-a-plus-05-2026", "name": "Command A+" },
+        { "id": "command-bls-nightly", "name": "Command BLS Nightly" },
+        { "id": "command-bls-nightly-previous", "name": "Command BLS Nightly Previous" },
+        { "id": "gemma-4-31b", "name": "Gemma 4 31B" },
+        { "id": "north-mini-code-1-0", "name": "North Mini Code" }
       ]
     }
   }
