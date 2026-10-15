@@ -220,6 +220,16 @@ in
   home.file.".claude/statusline-command.sh".source=
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/home/.claude/statusline-command.sh";
 
+  # Personal dev-station scripts live in scripts/ at the repo root and are linked
+  # onto PATH via ~/.local/bin (already on home.sessionPath above). Out-of-store
+  # symlinks mean editing a script in the repo is instantly live, no rebuild
+  # needed - same edit-in-place pattern as the .config/* links above. Add a new
+  # script by dropping it in scripts/ (chmod +x) and adding one line here.
+  home.file.".local/bin/openalex".source =
+    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/scripts/openalex";
+  home.file.".local/bin/gh-preview".source =
+    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/scripts/gh-preview";
+
 
   # Keep Pi's credential and runtime state local by linking only authored files and directories.
   home.file.".pi/agent/themes".source =

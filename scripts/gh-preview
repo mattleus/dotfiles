@@ -1,0 +1,254 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ──────────────────────────────────────────────────────────────
+# gh-preview — open a GitHub HTML file locally via a git worktree
+#
+# USAGE
+#   gh-preview [--serve] <github-blob-or-raw-url>
+#   gh-preview [--serve] -f path/in/repo.html <github-pr-url>
+#   gh-preview [--serve] https://github.com/o/r/pull/123
+#     (auto-opens if the PR has exactly one .html file)
+#
+# OPTIONS
+#   -s, --serve      Serve the whole worktree at http://127.0.0.1:<port>
+#                    (foreground; Ctrl-C to stop) instead of file:// —
+#                    required if the page fetch()es assets (CORS) or
+#                    uses paths relative to the repo root
+#   -f, --file PATH  File to open (required when a PR has >1 .html file)
+#   -h, --help
+#
+# ENV
+#   GH_PREVIEW_CACHE  cache dir (default ~/.cache/gh-preview)
+#
+# ── DESIGN / MAINTENANCE NOTES (read before editing) ──────────
+#
+# CACHE LAYOUT — safe to rm -rf entirely; worktrees prune cleanly
+#   ~/.cache/gh-preview/
+#     repos/<owner>/<repo>/            one reusable clone per repo
+#     worktrees/<owner>/<repo>/<ref>/  one worktree per ref
+#                                      (branch '/' → '__', or 'pr-N')
+#
+# AUTH — why the credential-helper dance exists
+#   Everything goes over HTTPS with `gh auth git-credential` as the
+#   credential helper. Plain `git clone https://...` relied on
+#   osxkeychain, which had no token → GitHub 404s private repos as
+#   "Repository not found" for unauthenticated requests. The helper
+#   is set repo-locally in each cached clone; global git config is
+#   deliberately untouched.
+#   Caveats:
+#     * Multiple gh accounts? The *active* one (gh auth status /
+#       gh auth switch) supplies the token. Wrong active account
+#       on a private repo = "Repository not found" again.
+#     * A global helper (e.g. osxkeychain) holding creds for the
+#       WRONG account also wins unless reset — that's why the repo-
+#       local config sets an empty helper value first, then --add
+#       the gh helper. Don't collapse that into a single `config`
+#     * If gh isn't installed, falls back to whatever git auth
+#       the machine has (works fine for public repos).
+#
+# BRANCH RESOLUTION (blob/raw URLs)
+#   Branch names can contain '/', so the URL alone can't tell where
+#   the branch ends and the file path begins. We pick the LONGEST
+#   URL prefix matching a real remote branch, then a tag, then a
+#   commit SHA. If this misfires, the repo probably has confusingly
+#   nested branch names (a/b and a/b/c).
+#
+# PR URLS
+#   Fetched via refs/pull/<N>/head (works for fork PRs without
+#   adding a remote), checked out DETACHED into worktree 'pr-N'.
+#   Re-running hard-resets to the latest push. Cache worktrees are
+#   throwaway previews — never do real work in them.
+#
+# UPDATE BEHAVIOR
+#   blob mode: reused worktrees do checkout + pull --ff-only
+#   pr mode:   reused worktrees do reset --hard  (detached)
+#   Both tolerate failure ('|| true' in blob mode) so a dirty
+#   worktree doesn't break previewing.
+#
+# SMOKE TEST after editing
+#   gh-preview --help
+#   gh-preview <public-repo-blob-url-to-.html>
+#   gh-preview --serve <same-url>          # then Ctrl-C
+#   gh-preview <private-repo-url>          # auth path
+# ──────────────────────────────────────────────────────────────
+
+CACHE_DIR="${GH_PREVIEW_CACHE:-$HOME/.cache/gh-preview}"
+
+die()   { echo "error: $*" >&2; exit 1; }
+usage() {
+  # print everything between the header's top and bottom borders;
+  # range end matches a border-only line so it survives header edits
+  sed -n '/^# ────*$/,/^# ────*$/p' "$0" | sed '1d; $d; s/^# \{0,1\}//' >&2
+  exit "${1:-1}"
+}
+
+# ── 0. Parse flags ────────────────────────────────────────────
+SERVE=0; EXPLICIT_FILE=""; URL=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -s|--serve) SERVE=1; shift ;;
+    -f|--file)  [[ $# -ge 2 ]] || die "--file needs an argument"
+                EXPLICIT_FILE="$2"; shift 2 ;;
+    -h|--help)  usage 0 ;;
+    http*)      URL="$1"; shift ;;
+    *)          die "unknown argument: $1" ;;
+  esac
+done
+[[ -n "$URL" ]] || usage 1
+
+open_target() {  # works for file paths and http URLs
+  case "$(uname -s)" in
+    Darwin)               open "$1" ;;
+    Linux)                xdg-open "$1" >/dev/null 2>&1 ;;
+    MINGW*|CYGWIN*|MSYS*) start "" "$1" ;;
+    *)                    die "don't know how to open a browser on this OS" ;;
+  esac
+}
+
+# ── 1. Parse the URL ──────────────────────────────────────────
+MODE=""   # "blob" or "pr"
+if [[ "$URL" =~ ^https?://github\.com/([^/]+)/([^/]+)/blob/(.+)$ ]]; then
+  MODE=blob; OWNER="${BASH_REMATCH[1]}"; REPO="${BASH_REMATCH[2]%.git}"; REST="${BASH_REMATCH[3]%%[?#]*}"
+elif [[ "$URL" =~ ^https?://raw\.githubusercontent\.com/([^/]+)/([^/]+)/(.+)$ ]]; then
+  MODE=blob; OWNER="${BASH_REMATCH[1]}"; REPO="${BASH_REMATCH[2]%.git}"; REST="${BASH_REMATCH[3]%%[?#]*}"
+elif [[ "$URL" =~ ^https?://github\.com/([^/]+)/([^/]+)/pull/([0-9]+) ]]; then
+  MODE=pr;   OWNER="${BASH_REMATCH[1]}"; REPO="${BASH_REMATCH[2]%.git}"; PR_NUM="${BASH_REMATCH[3]}"
+else
+  die "unrecognized URL (expected a /blob/, raw.githubusercontent.com, or /pull/ URL)"
+fi
+
+# ── 2. Get (or update) a local clone ──────────────────────────
+# Use the gh CLI as the credential helper so private repos work
+# without relying on osxkeychain / SSH config.
+GIT_AUTH=()
+if command -v gh >/dev/null 2>&1; then
+  GIT_AUTH=(-c credential.helper= -c 'credential.helper=!gh auth git-credential')
+fi
+
+REPO_DIR="$CACHE_DIR/repos/$OWNER/$REPO"
+if [[ ! -d "$REPO_DIR/.git" ]]; then
+  echo "Cloning $OWNER/$REPO ..." >&2
+  mkdir -p "$(dirname "$REPO_DIR")"
+  git ${GIT_AUTH[@]+"${GIT_AUTH[@]}"} clone --quiet \
+    "https://github.com/$OWNER/$REPO.git" "$REPO_DIR" \
+    || die "clone failed — check that you have access:  gh auth status"
+  if command -v gh >/dev/null 2>&1; then
+    # persist for future fetches inside this cached repo.
+    # The empty value resets the inherited helper list — otherwise
+    # a global helper like osxkeychain answers FIRST with creds for
+    # the wrong account and gh never gets asked.
+    git -C "$REPO_DIR" config --replace-all credential.helper ''
+    git -C "$REPO_DIR" config --add credential.helper '!gh auth git-credential'
+  fi
+else
+  if command -v gh >/dev/null 2>&1; then
+    git -C "$REPO_DIR" config --replace-all credential.helper ''
+    git -C "$REPO_DIR" config --add credential.helper '!gh auth git-credential'
+  fi
+  git -C "$REPO_DIR" fetch --quiet --prune origin
+fi
+
+# ── 3. Resolve ref + file path ────────────────────────────────
+REF="" REF_NAME="" FILE_PATH=""
+
+if [[ "$MODE" == blob ]]; then
+  # branch names can contain slashes → longest prefix of REST that
+  # matches a real remote branch/tag/commit wins
+  mapfile -t REMOTE_BRANCHES < <(
+    git -C "$REPO_DIR" for-each-ref --format='%(refname:strip=3)' refs/remotes/origin \
+    | grep -v '^HEAD$'
+  )
+  IFS='/' read -ra SEGS <<< "$REST"
+  ((${#SEGS[@]} >= 2)) || die "URL doesn't seem to contain a file path"
+
+  for (( n=${#SEGS[@]}-1; n>=1; n-- )); do
+    cand="$(IFS=/; echo "${SEGS[*]:0:n}")"
+    matched=""
+    for b in "${REMOTE_BRANCHES[@]}"; do [[ "$b" == "$cand" ]] && matched=1 && break; done
+    [[ -z "$matched" ]] && \
+      git -C "$REPO_DIR" rev-parse --verify --quiet "$cand^{commit}" >/dev/null && matched=1
+    if [[ -n "$matched" ]]; then
+      REF="$cand"
+      REF_NAME="${cand//\//__}"
+      FILE_PATH="$(IFS=/; echo "${SEGS[*]:n}")"
+      break
+    fi
+  done
+  [[ -n "$REF" && -n "$FILE_PATH" ]] \
+    || die "couldn't figure out which branch/path '$REST' refers to"
+
+else  # MODE=pr — fetch the PR head ref
+  REF="refs/remotes/origin/pr/$PR_NUM"
+  echo "Fetching PR #$PR_NUM ..." >&2
+  git -C "$REPO_DIR" fetch --quiet origin "+refs/pull/$PR_NUM/head:$REF" \
+    || die "couldn't fetch PR #$PR_NUM (merged refs still work; closed/fork PRs may not)"
+  REF_NAME="pr-$PR_NUM"
+  FILE_PATH="$EXPLICIT_FILE"
+fi
+
+# ── 4. Create or reuse a worktree ─────────────────────────────
+WT_DIR="$CACHE_DIR/worktrees/$OWNER/$REPO/$REF_NAME"
+
+if [[ -d "$WT_DIR" ]]; then
+  echo "Reusing worktree for '$REF_NAME', updating ..." >&2
+  if [[ "$MODE" == blob ]]; then
+    git -C "$WT_DIR" checkout --quiet "$REF" 2>/dev/null || true
+    git -C "$WT_DIR" pull --ff-only --quiet 2>/dev/null || true
+  else
+    git -C "$WT_DIR" reset --hard --quiet "$REF"
+  fi
+else
+  echo "Creating worktree for '$REF_NAME' ..." >&2
+  mkdir -p "$(dirname "$WT_DIR")"
+  if [[ "$MODE" == blob ]] && \
+     git -C "$REPO_DIR" show-ref --verify --quiet "refs/remotes/origin/$REF"; then
+    if git -C "$REPO_DIR" show-ref --verify --quiet "refs/heads/$REF"; then
+      git -C "$REPO_DIR" worktree add --quiet "$WT_DIR" "$REF"
+    else
+      git -C "$REPO_DIR" worktree add --quiet --track -b "$REF" "$WT_DIR" "origin/$REF"
+    fi
+  else
+    # PR head or a commit SHA → detached worktree
+    git -C "$REPO_DIR" worktree add --quiet --detach "$WT_DIR" "$REF"
+  fi
+fi
+
+# ── 5. Pick the file (PR mode may need a hint) ────────────────
+if [[ -z "$FILE_PATH" ]]; then
+  mapfile -t HTMLS < <(
+    find "$WT_DIR" -name '*.html' \
+      -not -path '*/node_modules/*' -not -path '*/.git/*' \
+    | sed "s|^$WT_DIR/||"
+  )
+  case "${#HTMLS[@]}" in
+    1) FILE_PATH="${HTMLS[0]}"
+       echo "Auto-detected: $FILE_PATH" >&2 ;;
+    0) die "no .html files found in PR #$PR_NUM" ;;
+    *) echo "Multiple HTML files — pick one with --file:" >&2
+       printf '  %s\n' "${HTMLS[@]}" >&2
+       exit 1 ;;
+  esac
+fi
+
+TARGET="$WT_DIR/$FILE_PATH"
+[[ -f "$TARGET" ]] || die "'$FILE_PATH' not found in the worktree"
+
+# ── 6. Open it ────────────────────────────────────────────────
+if [[ "$SERVE" -eq 1 ]]; then
+  command -v python3 >/dev/null || die "--serve requires python3"
+  PORT=8000
+  while (exec 3<>"/dev/tcp/127.0.0.1/$PORT") 2>/dev/null; do
+    exec 3>&- 3<&-
+    PORT=$((PORT + 1))
+    (( PORT < 8100 )) || die "no free port in 8000–8099"
+  done
+  SERVE_URL="http://127.0.0.1:$PORT/$FILE_PATH"
+  echo "Serving $WT_DIR at http://127.0.0.1:$PORT (Ctrl-C to stop)" >&2
+  ( sleep 0.5; open_target "$SERVE_URL" ) &
+  cd "$WT_DIR"
+  exec python3 -m http.server "$PORT" --bind 127.0.0.1
+else
+  echo "Opening file://$TARGET" >&2
+  open_target "$TARGET"
+fi

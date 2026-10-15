@@ -1,0 +1,263 @@
+#!/usr/bin/env node
+// OpenAlex works query helper.
+// Zero dependencies — uses Node 18+ built-in fetch.
+//
+// As a module:
+//   import { countWorks, countByLicense, buildWorksUrl, DOMAINS } from './openalex.mjs';
+//   await countWorks({ oa: true, domain: 'life-sciences' });
+//
+// As a CLI:
+//   node openalex.mjs count --oa --domain life-sciences
+//   node openalex.mjs count --oa --domain life-sciences --license cc-by,cc-by-sa
+//   node openalex.mjs by-license --oa --domain life-sciences
+//   node openalex.mjs sample --oa --domain life-sciences
+//   node openalex.mjs url --oa --domain life-sciences --license cc-by
+
+const API = 'https://api.openalex.org/works';
+
+// Set this (or OPENALEX_MAILTO env var) to join OpenAlex's faster "polite pool".
+const DEFAULT_MAILTO = process.env.OPENALEX_MAILTO || '';
+
+// When true, getJson prints the equivalent curl command to stderr before fetching.
+let SHOW_CURL = false;
+/** Enable/disable printing the reproducing curl command (module API). */
+export function setShowCurl(on = true) { SHOW_CURL = !!on; }
+
+// Domain name -> OpenAlex domain ID (verified against the live API).
+export const DOMAINS = {
+  'life-sciences': 1,
+  'social-sciences': 2,
+  'physical-sciences': 3,
+  'health-sciences': 4,
+};
+
+// Valid license values for best_oa_location.license / locations.license.
+export const LICENSES = [
+  'cc-by', 'cc-by-sa', 'cc-by-nd',
+  'cc-by-nc', 'cc-by-nc-sa', 'cc-by-nc-nd',
+  'public-domain', 'other-oa',
+];
+
+/**
+ * Build the OpenAlex filter string from options.
+ *
+ * @param {object} opts
+ * @param {boolean} [opts.oa]            Require open access (open_access.is_oa:true).
+ * @param {string|number} [opts.domain]  Domain name ('life-sciences') or numeric ID.
+ * @param {boolean} [opts.anyTopic]      Match domain in ANY topic (topics.domain.id)
+ *                                        instead of only the primary one.
+ * @param {string|string[]} [opts.license]  One or more license values (OR'd together).
+ * @param {string} [opts.oaStatus]       e.g. 'gold', 'green', 'hybrid', 'diamond'.
+ * @param {boolean} [opts.useLocations]  Use locations.license instead of
+ *                                        best_oa_location.license (looser match).
+ * @param {object} [opts.extra]          Extra raw filter pairs, e.g. { publication_year: 2024 }.
+ * @returns {string} comma-joined filter string
+ */
+export function buildFilter(opts = {}) {
+  const parts = [];
+
+  if (opts.oa) parts.push('open_access.is_oa:true');
+
+  if (opts.domain != null) {
+    const id = typeof opts.domain === 'number' ? opts.domain : DOMAINS[opts.domain];
+    if (id == null) {
+      throw new Error(
+        `Unknown domain '${opts.domain}'. Known: ${Object.keys(DOMAINS).join(', ')}`
+      );
+    }
+    const key = opts.anyTopic ? 'topics.domain.id' : 'primary_topic.domain.id';
+    parts.push(`${key}:${id}`);
+  }
+
+  if (opts.license) {
+    const list = Array.isArray(opts.license) ? opts.license : [opts.license];
+    const key = opts.useLocations ? 'locations.license' : 'best_oa_location.license';
+    parts.push(`${key}:${list.join('|')}`); // '|' = OR within a single filter
+  }
+
+  if (opts.oaStatus) parts.push(`open_access.oa_status:${opts.oaStatus}`);
+
+  if (opts.extra) {
+    for (const [k, v] of Object.entries(opts.extra)) parts.push(`${k}:${v}`);
+  }
+
+  return parts.join(','); // ',' = AND across filters
+}
+
+/** Build a full /works URL (filter + any query params). */
+export function buildWorksUrl(opts = {}, params = {}) {
+  const url = new URL(API);
+  const filter = buildFilter(opts);
+  if (filter) url.searchParams.set('filter', filter);
+  const mailto = opts.mailto ?? DEFAULT_MAILTO;
+  if (mailto) url.searchParams.set('mailto', mailto);
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
+  return url.toString();
+}
+
+async function getJson(url) {
+  if (SHOW_CURL) {
+    // Print the reproducing curl command to stderr so stdout stays parsable.
+    process.stderr.write(`curl -s '${url}'\n`);
+  }
+  const res = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`OpenAlex ${res.status} ${res.statusText}: ${body.slice(0, 300)}`);
+  }
+  return res.json();
+}
+
+/**
+ * Return the total count of works matching the filters (meta.count).
+ * Only pulls one minimal record, never the full result set.
+ */
+export async function countWorks(opts = {}) {
+  const url = buildWorksUrl(opts, { 'per-page': 1, select: 'id' });
+  const data = await getJson(url);
+  return data.meta.count;
+}
+
+/**
+ * Return a random sample of works matching the filters.
+ * Uses OpenAlex's `sample` param (requires per-page; seed makes it reproducible).
+ *
+ * @param {object} opts        same filter options as countWorks
+ * @param {number} [n=5]        how many works to sample (max 10,000 per OpenAlex)
+ * @param {number} [opts.seed]  fixed seed for a reproducible sample
+ * @returns {Promise<Array<{id,doi,title}>>}
+ */
+export async function sampleWorks(opts = {}, n = 5) {
+  const params = { sample: n, 'per-page': n, select: 'id,doi,title' };
+  if (opts.seed != null) params.seed = opts.seed;
+  const url = buildWorksUrl(opts, params);
+  const data = await getJson(url);
+  return data.results.map((w) => ({ id: w.id, doi: w.doi, title: w.title }));
+}
+
+/**
+ * Return a { license: count } breakdown for the given filters via group_by.
+ * One request returns a bucket per license.
+ */
+export async function countByLicense(opts = {}) {
+  const groupKey = opts.useLocations ? 'locations.license' : 'best_oa_location.license';
+  // Don't send a license filter when grouping by license.
+  const { license, ...rest } = opts;
+  const url = buildWorksUrl(rest, { group_by: groupKey });
+  const data = await getJson(url);
+  const out = {};
+  for (const g of data.group_by) {
+    const key = g.key_display_name || g.key.split('/').pop();
+    out[key] = g.count;
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// CLI
+// ---------------------------------------------------------------------------
+function parseArgs(argv) {
+  const opts = {};
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    switch (a) {
+      case '--oa': opts.oa = true; break;
+      case '--any-topic': opts.anyTopic = true; break;
+      case '--use-locations': opts.useLocations = true; break;
+      case '--domain': opts.domain = argv[++i]; break;
+      case '--license': opts.license = argv[++i].split(','); break;
+      case '--oa-status': opts.oaStatus = argv[++i]; break;
+      case '--mailto': opts.mailto = argv[++i]; break;
+      case '--seed': opts.seed = Number(argv[++i]); break;
+      case '--curl': SHOW_CURL = true; break;
+      case '-n': case '--count-n': opts.n = Number(argv[++i]); break;
+      case '--year': opts.extra = { ...opts.extra, publication_year: argv[++i] }; break;
+      default: throw new Error(`Unknown flag: ${a}`);
+    }
+  }
+  // domain may be numeric
+  if (opts.domain != null && /^\d+$/.test(opts.domain)) opts.domain = Number(opts.domain);
+  return opts;
+}
+
+async function main() {
+  const [cmd, ...rest] = process.argv.slice(2);
+  if (!cmd || cmd === 'help' || cmd === '--help') {
+    console.log(`OpenAlex works helper
+
+Usage:
+  node openalex.mjs count       [filters]   # total matching works (meta.count)
+  node openalex.mjs by-license  [filters]   # count per license (group_by)
+  node openalex.mjs sample      [filters]   # random sample of matching work URLs
+  node openalex.mjs url         [filters]   # print the API URL only
+
+Filters:
+  --oa                      require open access
+  --domain <name|id>        ${Object.keys(DOMAINS).join(' | ')} (or numeric ID)
+  --license a,b,c           license values, OR'd (${LICENSES.join(', ')})
+  --oa-status <status>      gold | green | hybrid | bronze | diamond | closed
+  --year <YYYY>             publication_year
+  --any-topic               match domain in any topic, not just the primary
+  --use-locations           use locations.license instead of best_oa_location.license
+  --mailto <email>          join OpenAlex polite pool
+  -n <N>                    number of works for 'sample' (default 5)
+  --seed <N>                fixed seed for a reproducible sample
+  --curl                    also print the equivalent curl command (to stderr)
+
+Examples:
+  node openalex.mjs sample --oa --domain life-sciences
+  node openalex.mjs sample --oa --domain life-sciences --license cc-by -n 5
+
+Examples:
+  node openalex.mjs count --oa --domain life-sciences
+  node openalex.mjs count --oa --domain life-sciences --license cc-by,cc-by-sa,cc-by-nc
+  node openalex.mjs by-license --oa --domain life-sciences`);
+    return;
+  }
+
+  const opts = parseArgs(rest);
+
+  if (cmd === 'url') {
+    const params = cmd === 'url' ? { 'per-page': 1, select: 'id' } : {};
+    console.log(buildWorksUrl(opts, params));
+    return;
+  }
+  if (cmd === 'count') {
+    const n = await countWorks(opts);
+    console.log(n.toLocaleString());
+    return;
+  }
+  if (cmd === 'sample') {
+    const n = opts.n ?? 5;
+    const works = await sampleWorks(opts, n);
+    if (!works.length) {
+      console.log('No matching works found.');
+      return;
+    }
+    for (const w of works) {
+      console.log(w.id);
+      if (w.doi) console.log(`  doi:   ${w.doi}`);
+      if (w.title) console.log(`  title: ${w.title}`);
+    }
+    return;
+  }
+  if (cmd === 'by-license') {
+    const rows = await countByLicense(opts);
+    const total = Object.values(rows).reduce((a, b) => a + b, 0);
+    const width = Math.max(...Object.keys(rows).map((k) => k.length), 7);
+    for (const [k, v] of Object.entries(rows).sort((a, b) => b[1] - a[1])) {
+      console.log(`${k.padEnd(width)}  ${v.toLocaleString().padStart(14)}`);
+    }
+    console.log(`${'TOTAL'.padEnd(width)}  ${total.toLocaleString().padStart(14)}  (with a license value)`);
+    return;
+  }
+  throw new Error(`Unknown command: ${cmd}. Try 'help'.`);
+}
+
+// Run as CLI only when executed directly (not when imported).
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((err) => {
+    console.error('Error:', err.message);
+    process.exit(1);
+  });
+}
