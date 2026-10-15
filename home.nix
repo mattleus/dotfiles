@@ -229,6 +229,11 @@ in
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/scripts/openalex";
   home.file.".local/bin/gh-preview".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/scripts/gh-preview";
+  # Run the darwin-rebuild wrapper from anywhere as `rebuild`. The script uses
+  # `pwd -P` to resolve its own real location, so invoking it through this
+  # symlink still points ~/.dotfiles at the repo correctly.
+  home.file.".local/bin/rebuild".source =
+    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/rebuild.sh";
 
 
   # Keep Pi's credential and runtime state local by linking only authored files and directories.
