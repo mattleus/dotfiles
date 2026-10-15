@@ -12,7 +12,7 @@
   // v1: autoupdate = true auto-installs updates, "notify" only says one
   // exists, false skips checks. (v2 renamed this to "update".)
   "autoupdate": true,
-  "model": "cohere-agent-gateway/gpt-5.6-luna",
+  "model": "cohere-agent-gateway-chat/claude-opus-4-8",
   "provider": {
     "cohere-oss": {
       "name": "Cohere OSS",
