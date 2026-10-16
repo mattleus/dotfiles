@@ -27,6 +27,7 @@ in
     lua-language-server           # lua (this very config)
     google-cloud-sdk  # gcloud CLI
     nodejs    # general JS/TS dev use
+    go        # Go
     # containers: docker is CLI-only here; colima runs the actual daemon in a
     # lightweight VM (macOS Virtualization.framework). After a first install,
     # the VM needs one manual kick: `colima start` (downloads a VM image).
