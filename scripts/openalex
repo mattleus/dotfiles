@@ -40,6 +40,11 @@ export const DOMAINS = {
 };
 
 // Valid license values for best_oa_location.license / locations.license.
+// OpenAlex source IDs for PubMed Central-family repositories (verified
+// against /sources?search=pubmed%20central).
+export const PMC_SOURCE_ID = 'S2764455111';        // PubMed Central
+export const EUROPE_PMC_SOURCE_ID = 'S4306400806'; // Europe PMC (PubMed Central)
+
 export const LICENSES = [
   'cc-by', 'cc-by-sa', 'cc-by-nd',
   'cc-by-nc', 'cc-by-nc-sa', 'cc-by-nc-nd',
@@ -58,6 +63,9 @@ export const LICENSES = [
  * @param {string} [opts.oaStatus]       e.g. 'gold', 'green', 'hybrid', 'diamond'.
  * @param {boolean} [opts.hasPmid]       Only works that have a PubMed ID
  *                                        (OpenAlex filter has_pmid:true).
+ * @param {boolean} [opts.pmc]           Only works with a PubMed Central-hosted
+ *                                        location (locations.source.id with PMC's
+ *                                        source ID).
  * @param {boolean} [opts.useLocations]  Use locations.license instead of
  *                                        best_oa_location.license (looser match).
  * @param {object} [opts.extra]          Extra raw filter pairs, e.g. { publication_year: 2024 }.
@@ -88,6 +96,8 @@ export function buildFilter(opts = {}) {
   if (opts.oaStatus) parts.push(`open_access.oa_status:${opts.oaStatus}`);
 
   if (opts.hasPmid) parts.push('has_pmid:true');
+
+  if (opts.pmc) parts.push(`locations.source.id:${PMC_SOURCE_ID}`);
 
   if (opts.extra) {
     for (const [k, v] of Object.entries(opts.extra)) parts.push(`${k}:${v}`);
@@ -372,6 +382,7 @@ function parseArgs(argv) {
     switch (a) {
       case '--oa': opts.oa = true; break;
       case '--has-pmid': opts.hasPmid = true; break;
+      case '--pmc': opts.pmc = true; break;
       case '--any-topic': opts.anyTopic = true; break;
       case '--use-locations': opts.useLocations = true; break;
       case '--json': opts.json = true; break;
@@ -432,6 +443,8 @@ Filters:
   --license a,b,c           license values, OR'd (${LICENSES.join(', ')})
   --oa-status <status>      gold | green | hybrid | bronze | diamond | closed
   --has-pmid                only works that have a PubMed ID (has_pmid:true)
+  --pmc                     only works with a PubMed Central-hosted location
+                            (locations.source.id:${PMC_SOURCE_ID})
   --year <YYYY>             publication_year
   --any-topic               match domain in any topic, not just the primary
   --use-locations           use locations.license instead of best_oa_location.license
