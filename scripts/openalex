@@ -56,6 +56,8 @@ export const LICENSES = [
  *                                        instead of only the primary one.
  * @param {string|string[]} [opts.license]  One or more license values (OR'd together).
  * @param {string} [opts.oaStatus]       e.g. 'gold', 'green', 'hybrid', 'diamond'.
+ * @param {boolean} [opts.hasPmid]       Only works that have a PubMed ID
+ *                                        (OpenAlex filter has_pmid:true).
  * @param {boolean} [opts.useLocations]  Use locations.license instead of
  *                                        best_oa_location.license (looser match).
  * @param {object} [opts.extra]          Extra raw filter pairs, e.g. { publication_year: 2024 }.
@@ -84,6 +86,8 @@ export function buildFilter(opts = {}) {
   }
 
   if (opts.oaStatus) parts.push(`open_access.oa_status:${opts.oaStatus}`);
+
+  if (opts.hasPmid) parts.push('has_pmid:true');
 
   if (opts.extra) {
     for (const [k, v] of Object.entries(opts.extra)) parts.push(`${k}:${v}`);
@@ -367,6 +371,7 @@ function parseArgs(argv) {
     const a = argv[i];
     switch (a) {
       case '--oa': opts.oa = true; break;
+      case '--has-pmid': opts.hasPmid = true; break;
       case '--any-topic': opts.anyTopic = true; break;
       case '--use-locations': opts.useLocations = true; break;
       case '--json': opts.json = true; break;
@@ -426,6 +431,7 @@ Filters:
   --domain <name|id>        ${Object.keys(DOMAINS).join(' | ')} (or numeric ID)
   --license a,b,c           license values, OR'd (${LICENSES.join(', ')})
   --oa-status <status>      gold | green | hybrid | bronze | diamond | closed
+  --has-pmid                only works that have a PubMed ID (has_pmid:true)
   --year <YYYY>             publication_year
   --any-topic               match domain in any topic, not just the primary
   --use-locations           use locations.license instead of best_oa_location.license
