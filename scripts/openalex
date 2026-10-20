@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync, realpathSync } from 'node:fs';
+import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 // OpenAlex works query helper.
 // Zero dependencies — uses Node 18+ built-in fetch.
@@ -11,6 +11,7 @@ import { pathToFileURL } from 'node:url';
 // As a CLI:
 //   node openalex.mjs count --oa --domain life-sciences
 //   node openalex.mjs count --oa --domain life-sciences --license cc-by,cc-by-sa
+//   node openalex.mjs count --oa --domain life-sciences --pmids out.csv
 //   node openalex.mjs by-license --oa --domain life-sciences
 //   node openalex.mjs sample --oa --domain life-sciences
 //   node openalex.mjs url --oa --domain life-sciences --license cc-by
@@ -20,6 +21,10 @@ const API = 'https://api.openalex.org/works';
 
 // Set this (or OPENALEX_MAILTO env var) to join OpenAlex's faster "polite pool".
 const DEFAULT_MAILTO = process.env.OPENALEX_MAILTO || '';
+
+// Free API key (https://openalex.org/settings/api), required by OpenAlex for
+// cursor paging (--pmids paginating past page 1). --api-key overrides.
+const DEFAULT_API_KEY = process.env.OPENALEX_API_KEY || '';
 
 // When true, getJson prints the equivalent curl command to stderr before fetching.
 let SHOW_CURL = false;
@@ -94,6 +99,8 @@ export function buildWorksUrl(opts = {}, params = {}) {
   if (filter) url.searchParams.set('filter', filter);
   const mailto = opts.mailto ?? DEFAULT_MAILTO;
   if (mailto) url.searchParams.set('mailto', mailto);
+  const apiKey = opts.apiKey ?? DEFAULT_API_KEY;
+  if (apiKey) url.searchParams.set('api_key', apiKey);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
   return url.toString();
 }
@@ -136,6 +143,46 @@ export async function sampleWorks(opts = {}, n = 5) {
   const url = buildWorksUrl(opts, params);
   const data = await getJson(url);
   return data.results.map((w) => ({ id: w.id, doi: w.doi, title: w.title }));
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Cursor-paginate through ALL works matching the filters and collect the
+ * PMID (bare digits) of each work that has one. Works without a PMID are
+ * skipped. Uses cursor paging rather than per-page/page, which caps out at
+ * 10,000 results.
+ *
+ * @param {object} opts             same filter options as countWorks
+ * @param {object} [page]
+ * @param {number} [page.sleepMs]   pause between page requests (default 120
+ *                                  ms, to stay well under the 10 req/s limit)
+ * @returns {Promise<{pmids: string[], scanned: number}>}
+ */
+export async function fetchPmids(opts = {}, { sleepMs = 120 } = {}) {
+  const pmids = [];
+  let scanned = 0;
+  let cursor = '*';
+  while (cursor) {
+    const url = buildWorksUrl(opts, { cursor, 'per-page': 200, select: 'id,ids' });
+    const data = await getJson(url);
+    const results = data.results ?? [];
+    scanned += results.length;
+    for (const w of results) {
+      const pmid = normalizePmid(w.ids?.pmid ?? '');
+      if (pmid) pmids.push(pmid);
+    }
+    const next = data.meta?.next_cursor;
+    cursor = next && results.length ? next : null;
+    if (cursor && sleepMs > 0) await sleep(sleepMs);
+  }
+  return { pmids, scanned };
+}
+
+/** Write PMIDs to a CSV file: a 'pmid' header, then one PMID per line. */
+export function writePmidsCsv(file, pmids) {
+  // PMIDs are digits only, so no escaping is needed.
+  writeFileSync(file, `pmid\n${pmids.join('\n')}\n`);
 }
 
 /**
@@ -338,6 +385,8 @@ function parseArgs(argv) {
       case '--seed': opts.seed = Number(argv[++i]); break;
       case '--curl': SHOW_CURL = true; break;
       case '--file': case '-f': opts.file = argv[++i]; break;
+      case '--pmids': opts.pmids = argv[++i]; break;
+      case '--api-key': opts.apiKey = argv[++i]; break;
       case '-n': case '--count-n': opts.n = Number(argv[++i]); break;
       case '--year': opts.extra = { ...opts.extra, publication_year: argv[++i] }; break;
       default:
@@ -356,7 +405,10 @@ async function main() {
     console.log(`OpenAlex works helper
 
 Usage:
-  node openalex.mjs count       [filters]   # total matching works (meta.count)
+  node openalex.mjs count       [filters] [--pmids out.csv]
+                                          # total matching works (meta.count)
+                                          # --pmids also writes the PubMed ID
+                                          # of every matching work to a CSV
   node openalex.mjs by-license  [filters]   # count per license (group_by)
   node openalex.mjs sample      [filters]   # sample of matching works
   node openalex.mjs url         [filters]   # print the API URL only
@@ -378,7 +430,13 @@ Filters:
   --any-topic               match domain in any topic, not just the primary
   --use-locations           use locations.license instead of best_oa_location.license
   --mailto <email>          join OpenAlex polite pool
+  --api-key <key>           OpenAlex API key (or OPENALEX_API_KEY env var);
+                            required by OpenAlex for cursor paging (--pmids
+                            past the first 200 results)
   -n <N>                    number of works for 'sample' (default 5)
+  --pmids <file.csv>        'count' only: also write every matching work's
+                            PMID (one per line) to a CSV (works without one
+                            are skipped)
   --seed <N>                fixed seed for a reproducible sample
   --curl                    also print the equivalent curl command (to stderr)
 
@@ -389,6 +447,7 @@ Examples:
 Examples:
   node openalex.mjs count --oa --domain life-sciences
   node openalex.mjs count --oa --domain life-sciences --license cc-by,cc-by-sa,cc-by-nc
+  node openalex.mjs count --oa --domain life-sciences --license cc-by --pmids pmids.csv
   node openalex.mjs by-license --oa --domain life-sciences
   node openalex.mjs license 23008161 24302613
   node openalex.mjs license --pmcid PMC3535092 PMC3908754
@@ -397,6 +456,9 @@ Examples:
   }
 
   const opts = parseArgs(rest);
+  if (opts.pmids && cmd !== 'count') {
+    throw new Error(`--pmids is only valid with 'count', not '${cmd}'.`);
+  }
 
   if (cmd === 'url') {
     const params = cmd === 'url' ? { 'per-page': 1, select: 'id' } : {};
@@ -406,6 +468,15 @@ Examples:
   if (cmd === 'count') {
     const n = await countWorks(opts);
     console.log(n.toLocaleString());
+    if (opts.pmids) {
+      const { pmids, scanned } = await fetchPmids(opts);
+      writePmidsCsv(opts.pmids, pmids);
+      process.stderr.write(
+        `# wrote ${pmids.length.toLocaleString()} PMIDs to ${opts.pmids} ` +
+        `(${scanned.toLocaleString()} works scanned, ` +
+        `${(scanned - pmids.length).toLocaleString()} without a PMID)\n`
+      );
+    }
     return;
   }
   if (cmd === 'sample') {
