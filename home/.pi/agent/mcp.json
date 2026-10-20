@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "linear": {
+      "url": "https://mcp.linear.app/mcp",
+      "description": "Linear issue tracker: read and manage issues, projects, and cycles"
+    },
+    "agent-fabric": {
+      "url": "https://llm-gateway-acp-prod.tail5566.ts.net/mcp/http",
+      "oauth": { "clientId": "system-mcp" }
+    }
+  }
+}
