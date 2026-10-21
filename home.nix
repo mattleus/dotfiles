@@ -268,6 +268,45 @@ in
     fi
   '';
 
+  # acp-cli (github.com/cohere-ai/acp-cli) points Pi, Codex, Zed and OpenCode at
+  # the Agent Control Plane gateway without hand-pasted config blocks. Release
+  # assets live on the private repo, so - like the Homebrew cask's
+  # GitHubCliDownloadStrategy - the download goes through the gh CLI login,
+  # pinned to an exact version and checksum-verified. The binary lands versioned
+  # under ~/.local/share/acp-cli and a link at ~/.local/bin/acp-cli (on
+  # home.sessionPath) tracks it. Bump the version here, rebuild, and the
+  # activation installs the new one. The binary is not notarized, so clear the
+  # quarantine xattr in case a downloader ever tags it. This block only installs
+  # the CLI; `acp-cli setup` rewrites each tool's config, so it stays manual.
+  home.activation.installAcpCli = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    acpCliVersion="0.1.5"
+    acpCliRoot="$HOME/.local/share/acp-cli/$acpCliVersion"
+    acpCliBin="$acpCliRoot/bin/acp-cli"
+    if [ ! -x "$acpCliBin" ] || ! "$acpCliBin" version 2>/dev/null | grep -q "$acpCliVersion"; then
+      acpCliGh="$HOME/.nix-profile/bin/gh"
+      [ -x "$acpCliGh" ] || acpCliGh="$(command -v gh)"
+      acpCliToken="$(env -u GH_TOKEN "$acpCliGh" auth token -h github.com -u mattleus-cohere)"
+      acpCliArch="$(uname -m)"
+      [ "$acpCliArch" = "x86_64" ] && acpCliArch="amd64"
+      acpCliAsset="acp-cli_"$acpCliVersion"_darwin_"$acpCliArch".tar.gz"
+      acpCliSums="acp-cli_"$acpCliVersion"_checksums.txt"
+      acpCliTmp="$(mktemp -d)"
+      trap 'rm -rf "$acpCliTmp"' EXIT
+      run env GH_TOKEN="$acpCliToken" "$acpCliGh" release download v$acpCliVersion \
+        --repo cohere-ai/acp-cli --pattern "$acpCliAsset" --pattern "$acpCliSums" \
+        --dir "$acpCliTmp" --clobber
+      grep _darwin_"$acpCliArch". "$acpCliTmp/$acpCliSums" > "$acpCliTmp/want.txt"
+      (cd "$acpCliTmp" && run shasum -a 256 -c want.txt)
+      run tar -xzf "$acpCliTmp/$acpCliAsset" -C "$acpCliTmp"
+      run mkdir -p "$acpCliRoot/bin"
+      run install -m 0755 "$acpCliTmp/acp-cli" "$acpCliBin"
+      run /usr/bin/xattr -d com.apple.quarantine "$acpCliBin" 2>/dev/null || true
+      rm -rf "$acpCliTmp"
+      trap - EXIT
+    fi
+    run ln -sfn "$acpCliBin" "$HOME/.local/bin/acp-cli"
+  '';
+
   # no-mistakes reads this machine-local config from ~/.no-mistakes. The
   # default/fix pipeline roles stay on Pi. Review and review-fix agents moved
   # to Pi because gate agents run in target checkouts, and a checkout carrying
