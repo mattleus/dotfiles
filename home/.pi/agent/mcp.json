@@ -6,7 +6,9 @@
     },
     "agent-fabric": {
       "url": "https://llm-gateway-acp-prod.tail5566.ts.net/mcp/http",
-      "oauth": { "clientId": "system-mcp" }
+      "oauth": {
+        "clientId": "system-mcp"
+      }
     }
   }
 }

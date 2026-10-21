@@ -3,13 +3,13 @@
     "openai-codex": {
       "modelOverrides": {
         "gpt-5.6-luna": {
-          "contextWindow": 272000
+          "contextWindow": 1048576
         },
         "gpt-5.6-sol": {
-          "contextWindow": 272000
+          "contextWindow": 1048576
         },
         "gpt-5.6-terra": {
-          "contextWindow": 272000
+          "contextWindow": 1048576
         }
       }
     },
@@ -130,12 +130,14 @@
         {
           "id": "claude-sonnet-5",
           "name": "Claude Sonnet 5",
-          "reasoning": true
+          "reasoning": true,
+          "contextWindow": 1048576
         },
         {
           "id": "claude-opus-5",
           "name": "Claude Opus 5",
-          "reasoning": true
+          "reasoning": true,
+          "contextWindow": 1048576
         }
       ]
     },
@@ -145,10 +147,10 @@
       "api": "openai-completions",
       "apiKey": "unused",
       "models": [
-        { "id": "gpt-5.5", "name": "GPT-5.5" },
-        { "id": "gpt-5.6-luna", "name": "GPT-5.6 Luna" },
-        { "id": "gpt-5.6-sol", "name": "GPT-5.6 Sol" },
-        { "id": "gpt-5.6-terra", "name": "GPT-5.6 Terra" }
+        { "id": "gpt-5.5", "name": "GPT-5.5", "contextWindow": 1048576 },
+        { "id": "gpt-5.6-luna", "name": "GPT-5.6 Luna", "contextWindow": 1048576 },
+        { "id": "gpt-5.6-sol", "name": "GPT-5.6 Sol", "contextWindow": 1048576 },
+        { "id": "gpt-5.6-terra", "name": "GPT-5.6 Terra", "contextWindow": 1048576 }
       ]
     },
     "cohere-agent-gateway-chat": {
@@ -157,17 +159,716 @@
       "api": "openai-completions",
       "apiKey": "unused",
       "models": [
-        { "id": "claude-opus-4-6", "name": "Claude Opus 4.6" },
-        { "id": "claude-opus-4-8", "name": "Claude Opus 4.8" },
-        { "id": "claude-opus-5", "name": "Claude Opus 5" },
-        { "id": "claude-opus-5-5", "name": "Claude Opus 5.5" },
-        { "id": "claude-sonnet-4-5", "name": "Claude Sonnet 4.5" },
-        { "id": "claude-sonnet-5", "name": "Claude Sonnet 5" },
+        { "id": "claude-opus-4-6", "name": "Claude Opus 4.6", "contextWindow": 1048576 },
+        { "id": "claude-opus-4-8", "name": "Claude Opus 4.8", "contextWindow": 1048576 },
+        { "id": "claude-opus-5", "name": "Claude Opus 5", "contextWindow": 1048576 },
+        { "id": "claude-opus-5-5", "name": "Claude Opus 5.5", "contextWindow": 1048576 },
+        { "id": "claude-sonnet-4-5", "name": "Claude Sonnet 4.5", "contextWindow": 1048576 },
+        { "id": "claude-sonnet-5", "name": "Claude Sonnet 5", "contextWindow": 1048576 },
         { "id": "command-a-plus-05-2026", "name": "Command A+" },
         { "id": "command-bls-nightly", "name": "Command BLS Nightly" },
         { "id": "command-bls-nightly-previous", "name": "Command BLS Nightly Previous" },
         { "id": "gemma-4-31b", "name": "Gemma 4 31B" },
         { "id": "north-mini-code-1-0", "name": "North Mini Code" }
+      ]
+    },
+    "gateway": {
+      "baseUrl": "https://llm-gateway-acp-prod.tail5566.ts.net/v1",
+      "api": "openai-responses",
+      "apiKey": "unused",
+      "authHeader": false,
+      "models": [
+        {
+          "id": "gpt-5.5",
+          "name": "gateway/gpt-5.5",
+          "contextWindow": 278528,
+          "maxTokens": 128000,
+          "reasoning": true,
+          "input": [
+            "text",
+            "image"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": true,
+            "chat_completions": false
+          }
+        },
+        {
+          "id": "gpt-5.6-luna",
+          "name": "gateway/gpt-5.6-luna",
+          "contextWindow": 278528,
+          "maxTokens": 128000,
+          "reasoning": true,
+          "input": [
+            "text",
+            "image"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": true,
+            "chat_completions": false
+          }
+        },
+        {
+          "id": "gpt-5.6-sol",
+          "name": "gateway/gpt-5.6-sol",
+          "contextWindow": 278528,
+          "maxTokens": 128000,
+          "reasoning": true,
+          "input": [
+            "text",
+            "image"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": true,
+            "chat_completions": false
+          }
+        },
+        {
+          "id": "gpt-5.6-terra",
+          "name": "gateway/gpt-5.6-terra",
+          "contextWindow": 278528,
+          "maxTokens": 128000,
+          "reasoning": true,
+          "input": [
+            "text",
+            "image"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": true,
+            "chat_completions": false
+          }
+        },
+        {
+          "id": "gpt-6-luna",
+          "name": "gateway/gpt-6-luna",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": false
+          }
+        },
+        {
+          "id": "gpt-6.1-sol",
+          "name": "gateway/gpt-6.1-sol",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": false
+          }
+        },
+        {
+          "id": "Cloudflare/clef",
+          "name": "gateway/Cloudflare/clef",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "claude-haiku-5-5",
+          "name": "gateway/claude-haiku-5-5",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "claude-opus-4-6",
+          "name": "gateway/claude-opus-4-6",
+          "api": "openai-completions",
+          "contextWindow": 1000000,
+          "maxTokens": 128000,
+          "reasoning": true,
+          "input": [
+            "text",
+            "image"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": true,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "claude-opus-4-8",
+          "name": "gateway/claude-opus-4-8",
+          "api": "openai-completions",
+          "contextWindow": 1000000,
+          "maxTokens": 128000,
+          "reasoning": true,
+          "input": [
+            "text",
+            "image"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": true,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "claude-opus-5",
+          "name": "gateway/claude-opus-5",
+          "api": "openai-completions",
+          "contextWindow": 1000000,
+          "maxTokens": 128000,
+          "reasoning": true,
+          "input": [
+            "text",
+            "image"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": true,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "claude-opus-5-5",
+          "name": "gateway/claude-opus-5-5",
+          "api": "openai-completions",
+          "contextWindow": 1000000,
+          "maxTokens": 128000,
+          "reasoning": true,
+          "input": [
+            "text",
+            "image"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": true,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "claude-sonnet-4-5",
+          "name": "gateway/claude-sonnet-4-5",
+          "api": "openai-completions",
+          "contextWindow": 1000000,
+          "maxTokens": 64000,
+          "reasoning": true,
+          "input": [
+            "text",
+            "image"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": true,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "claude-sonnet-5",
+          "name": "gateway/claude-sonnet-5",
+          "api": "openai-completions",
+          "contextWindow": 1000000,
+          "maxTokens": 128000,
+          "reasoning": true,
+          "input": [
+            "text",
+            "image"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": true,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "claude-sonnet-5-5",
+          "name": "gateway/claude-sonnet-5-5",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "cohere/command-a-03-2025",
+          "name": "gateway/cohere/command-a-03-2025",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "cohere/command-a-plus-05-2026",
+          "name": "gateway/cohere/command-a-plus-05-2026",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "cohere/command-a-reasoning-08-2025",
+          "name": "gateway/cohere/command-a-reasoning-08-2025",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "cohere/command-a-translate-08-2025",
+          "name": "gateway/cohere/command-a-translate-08-2025",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "cohere/command-a-vision-07-2025",
+          "name": "gateway/cohere/command-a-vision-07-2025",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "cohere/command-r-08-2024",
+          "name": "gateway/cohere/command-r-08-2024",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "cohere/command-r-chunk",
+          "name": "gateway/cohere/command-r-chunk",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "cohere/command-r-plus-08-2024",
+          "name": "gateway/cohere/command-r-plus-08-2024",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "cohere/command-r7b-12-2024",
+          "name": "gateway/cohere/command-r7b-12-2024",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "cohere/command-r7b-arabic-02-2025",
+          "name": "gateway/cohere/command-r7b-arabic-02-2025",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "cohere/command-rv2-chunk",
+          "name": "gateway/cohere/command-rv2-chunk",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "cohere/command-smifs-mls-v1",
+          "name": "gateway/cohere/command-smifs-mls-v1",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "cohere/command2-100b-ruq-new-export-test-128k-bf16-w8a8",
+          "name": "gateway/cohere/command2-100b-ruq-new-export-test-128k-bf16-w8a8",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "cohere/command2-100b-v20-1-3331wxzxr-autox-tif-multi-stg",
+          "name": "gateway/cohere/command2-100b-v20-1-3331wxzxr-autox-tif-multi-stg",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "cohere/north-large-01-2026",
+          "name": "gateway/cohere/north-large-01-2026",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "cohere/north-mini-beta-oct-02",
+          "name": "gateway/cohere/north-mini-beta-oct-02",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "cohere/north-mini-code-1-0",
+          "name": "gateway/cohere/north-mini-code-1-0",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "cohere/north-small-beta-oct-09",
+          "name": "gateway/cohere/north-small-beta-oct-09",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "cohere/north-small-translate-09-2026",
+          "name": "gateway/cohere/north-small-translate-09-2026",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "command-a-plus-05-2026",
+          "name": "gateway/command-a-plus",
+          "api": "openai-completions",
+          "contextWindow": 436000,
+          "maxTokens": 64000,
+          "input": [
+            "text",
+            "image"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": true,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "gemma-4-31b",
+          "name": "gateway/gemma-4-31b",
+          "api": "openai-completions",
+          "contextWindow": 131072,
+          "maxTokens": 40960,
+          "input": [
+            "text",
+            "image"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": true,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "jev-1.13",
+          "name": "gateway/jev-1.13",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "north-mini-code-1-0",
+          "name": "gateway/north-mini-code",
+          "api": "openai-completions",
+          "contextWindow": 256000,
+          "maxTokens": 64000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "oss/deepseek-v4-1-flash",
+          "name": "gateway/oss/deepseek-v4-1-flash",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "oss/deepseek-v4-1-flash-1017",
+          "name": "gateway/oss/deepseek-v4-1-flash-1017",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "oss/glm-5-3-flash",
+          "name": "gateway/oss/glm-5-3-flash",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "oss/kimi-k3-b200-pd-1p1d",
+          "name": "gateway/oss/kimi-k3-b200-pd-1p1d",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "oss/kimi-k3-gb200",
+          "name": "gateway/oss/kimi-k3-gb200",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "oss/mimo-v2-6-flash",
+          "name": "gateway/oss/mimo-v2-6-flash",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        },
+        {
+          "id": "oss/mimo-v2-6-pro",
+          "name": "gateway/oss/mimo-v2-6-pro",
+          "api": "openai-completions",
+          "contextWindow": 128000,
+          "maxTokens": 32000,
+          "input": [
+            "text"
+          ],
+          "capabilities": {
+            "tools": true,
+            "images": false,
+            "chat_completions": true
+          }
+        }
       ]
     }
   }
