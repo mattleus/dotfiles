@@ -18,6 +18,11 @@ result-*
 # no-mistakes local validation state - never commit in this public repo
 .no-mistakes/
 
+# Lavish Editor review artifacts (*.html) are agent-generated review surfaces meant
+# for the current working directory (see `lavish-axi` help); when an agent runs with
+# the dotfiles as cwd they land here. Working artifacts, not config - never commit.
+.lavish/
+
 # Machine-local environment variables (API keys, tokens, etc) sourced by home.nix's
 # zsh initContent - real values only ever live here, never in a tracked file.
 /home/env.local
@@ -28,3 +33,10 @@ result-*
 # opencode v2 writes its background-service pairing password beside the config (same
 # symlink target) - a runtime secret that must never be committed.
 /home/.config/opencode/service.json
+# opencode plugins are installed at runtime by `lavish-axi setup hooks` (see the axi
+# tools activation in home.nix) into the same symlinked config dir - never commit.
+/home/.config/opencode/plugins/
+# herdr keeps per-session runtime state (<session>/session.json + herdr-server.log)
+# inside ~/.config/herdr, which out-of-store symlinks into this repo - runtime state,
+# not config; never commit.
+/home/.config/herdr/sessions/
