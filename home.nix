@@ -282,7 +282,7 @@ in
     acpCliVersion="0.1.5"
     acpCliRoot="$HOME/.local/share/acp-cli/$acpCliVersion"
     acpCliBin="$acpCliRoot/bin/acp-cli"
-    if [ ! -x "$acpCliBin" ] || ! "$acpCliBin" version 2>/dev/null | grep -q "$acpCliVersion"; then
+    if [ ! -x "$acpCliBin" ] || ! "$acpCliBin" version 2>&1 | grep -q "$acpCliVersion"; then
       acpCliGh="$HOME/.nix-profile/bin/gh"
       [ -x "$acpCliGh" ] || acpCliGh="$(command -v gh)"
       acpCliToken="$(env -u GH_TOKEN "$acpCliGh" auth token -h github.com -u mattleus-cohere)"
