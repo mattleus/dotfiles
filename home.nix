@@ -314,11 +314,18 @@ in
   # itself) needs a reviewer with a verified neutralization knob - opencode has
   # none, so no-mistakes refused it there. The pinned v1 opencode worker above
   # stays installed and referenced in agent_path_override in case a review role
-  # needs it again.
+  # needs it again. The agent_config.pi pin keeps pipeline review/fixer gates
+  # off this pi install's broken global default (oss-model-vault-v2's kimi-k3
+  # entry 404s on every turn); cohere-acp's kimi-k3-b200-pd-1p1d variant serves
+  # and is the verified fleet default.
   home.file.".no-mistakes/config.yaml".text = ''
     agent: pi
     agent_path_override:
       opencode: ${config.home.homeDirectory}/.local/share/no-mistakes/opencode-v1.18.31/bin/opencode
+    agent_config:
+      pi:
+        model: cohere-acp/oss/kimi-k3-b200-pd-1p1d
+        effort: high
     review_agents:
       reviewer:
         agent: pi
