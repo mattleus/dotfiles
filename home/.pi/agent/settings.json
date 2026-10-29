@@ -6,7 +6,7 @@
     "showImages": false
   },
   "defaultProvider": "cohere-acp",
-  "defaultModel": "claude-opus-5-5",
+  "defaultModel": "oss/kimi-k3-b200-pd-1p1d",
   "defaultThinkingLevel": "high",
   "hideThinkingBlock": true,
   "quietStartup": true,

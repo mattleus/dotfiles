@@ -315,14 +315,14 @@ in
   # none, so no-mistakes refused it there. The pinned v1 opencode worker above
   # stays installed and referenced in agent_path_override in case a review role
   # needs it again. The agent_config.pi pin keeps every pi gate invocation off
-  # this pi install's global default, which is now cohere-acp/claude-opus-5-5
-  # (the previous oss-model-vault-v2/kimi-k3 default 404'd on every turn);
-  # cohere-acp's kimi-k3-b200-pd-1p1d variant serves and
-  # remains the fixer's pin. Review uses the same pi harness but on Claude Opus
-  # 5.5: review_agents accepts model/effort per role, and a nonempty role value
-  # overrides agent_config for that role only, so the reviewer runs
-  # cohere-acp/claude-opus-5-5 (confirmed in this install's cohere-acp model
-  # list), effort high.
+  # this pi install's global default, which is now also
+  # cohere-acp/oss/kimi-k3-b200-pd-1p1d (the previous oss-model-vault-v2/kimi-k3
+  # default 404'd on every turn); cohere-acp's kimi-k3-b200-pd-1p1d variant
+  # serves and is the fixer's pin. Review uses the same pi harness on the same
+  # Kimi PD-1P1D model: review_agents accepts model/effort per role, and a
+  # nonempty role value overrides agent_config for that role only, so the
+  # reviewer runs cohere-acp/oss/kimi-k3-b200-pd-1p1d (confirmed in this
+  # install's cohere-acp model list), effort high.
   home.file.".no-mistakes/config.yaml".text = ''
     agent: pi
     agent_path_override:
@@ -334,7 +334,7 @@ in
     review_agents:
       reviewer:
         agent: pi
-        model: cohere-acp/claude-opus-5-5
+        model: cohere-acp/oss/kimi-k3-b200-pd-1p1d
         effort: high
       fixer:
         agent: pi
