@@ -101,6 +101,7 @@
       "google-drive"
       "opensuperwhisper"
       "quickmd"
+      "caffeine"
     ];
   };
 }
