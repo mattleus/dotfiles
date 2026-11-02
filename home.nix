@@ -349,6 +349,11 @@ in
     # (dom-216 document step died at 30m on 2026-10-28 while concluding no doc
     # changes were needed).
     agent_timeout: 60m
+    # Review fix rounds have their own cap (dom-243 and dom-180 fix rounds died at
+    # exactly 30m on 2026-10-28 even with agent_timeout at 60m): review_agent_timeout
+    # is a separate key with a baked-in 30m default. Raised same day; ported from the
+    # live ~/.no-mistakes/config.yaml where it had been set by hand and never landed.
+    review_agent_timeout: 60m
   '';
 
   # opencode: deliberately NOT a nixpkgs package or Homebrew formula (it has both) so that its
