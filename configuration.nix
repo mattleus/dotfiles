@@ -102,6 +102,7 @@
       "opensuperwhisper"
       "quickmd"
       "caffeine"
+      "tailscale-app"
     ];
   };
 }
