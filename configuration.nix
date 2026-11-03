@@ -51,29 +51,18 @@
   };
 
   # Remote Login (sshd) so the Whip phone app (github.com/kosumic/whip) can reach
-  # this Mac over Tailscale and drive herdr. nix-darwin has no sshd option, so flip
-  # the same switch the Sharing pane does. systemsetup -f -setremotelogin on is the
-  # supported CLI path (-f skips its interactive confirmation prompt); launchctl
-  # load -w on Apple's plist stays as a fallback - on current macOS it fails with
-  # "Bootstrap failed: 5" when Remote Login was never enabled, and this block
-  # previously hid that behind `|| true`, leaving sshd down while looking green.
-  # Guard and verify on port 22 actually listening, because a loaded-but-disabled
-  # service still passes `launchctl print`; whipair needs ssh-keyscan to work.
-  # The pairing flow (whipair) authorizes an SSH key; macOS password auth also
-  # remains enabled per stock sshd_config.
-  system.activationScripts.enableSshd.text = ''
-    if ! /usr/bin/nc -z 127.0.0.1 22 2>/dev/null; then
-      /usr/sbin/systemsetup -f -setremotelogin on \
-        || /bin/launchctl load -w /System/Library/LaunchDaemons/ssh.plist \
-        || /bin/launchctl bootstrap system /System/Library/LaunchDaemons/ssh.plist \
-        || true
-      if ! /usr/bin/nc -z 127.0.0.1 22 2>/dev/null; then
-        echo "enableSshd: WARNING - sshd is still not listening on port 22." >&2
-        echo "enableSshd: turn on System Settings > General > Sharing > Remote Login," >&2
-        echo "enableSshd: then re-run rebuild. whipair cannot pair until ssh-keyscan works." >&2
-      fi
-    fi
-  '';
+  # this Mac over Tailscale and drive herdr. Native nix-darwin 26.05 module: enables
+  # Apple's built-in sshd via `launchctl enable/bootstrap` - deliberately NOT
+  # `systemsetup -setremotelogin`, which requires Full Disk Access. Also generates
+  # host keys and writes /etc/ssh/sshd_config.d snippets. The whipair pairing flow
+  # authorizes an SSH key; password auth stays enabled per stock sshd_config.
+  #
+  # History: we first tried a custom `system.activationScripts.enableSshd` script
+  # for this, but nix-darwin 26.05 assembles /run/current-system/activate from a
+  # hardcoded whitelist of script names (see modules/system/activation-scripts.nix),
+  # so custom names are silently dropped - two green-looking rebuilds never started
+  # sshd. Verified by grepping /run/current-system/activate for the script body.
+  services.openssh.enable = true;
 
   homebrew = {
     enable = true;
