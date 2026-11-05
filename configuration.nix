@@ -1,4 +1,4 @@
-{ user, pkgs, ... }:
+{ user, pkgs, lib, ... }:
 
 {
   # Determinate already manages the Nix daemon, so nix-darwin shouldn't.
@@ -63,6 +63,40 @@
   # so custom names are silently dropped - two green-looking rebuilds never started
   # sshd. Verified by grepping /run/current-system/activate for the script body.
   services.openssh.enable = true;
+
+  # services.openssh alone did not make sshd survive reboots (observed on macOS
+  # 26.6): its launchd block only bootstraps sshd for the CURRENT session, which
+  # is why port 22 answers until the machine restarts. The boot-time decision
+  # comes from launchd's overrides DB, /var/db/com.apple.xpc.launchd/disabled.plist,
+  # which still had com.openssh.sshd => true after a green rebuild (Settings >
+  # General > Sharing > Remote Login reads the same DB and showed the toggle OFF).
+  # Apple's ssh.plist itself also ships Disabled=true, so a MISSING override entry
+  # still means off at boot - only an explicit `false` keeps sshd starting.
+  # So: on every activation, force the override to false (enable; then load -w;
+  # then systemsetup, which can need Full Disk Access), bootstrap sshd for the
+  # current session, then VERIFY the DB actually says false. A silent no-op at
+  # exactly this step is how the machine ended up half-fixed twice, so verify
+  # and warn loudly instead of trusting exit codes.
+  system.activationScripts.postActivation.text = lib.mkAfter ''
+    _sshd_boot_state() {
+      /usr/bin/plutil -extract "com.openssh.sshd" raw -o - /var/db/com.apple.xpc.launchd/disabled.plist 2>/dev/null
+    }
+    if [ "$(_sshd_boot_state)" != "false" ]; then
+      /bin/launchctl enable system/com.openssh.sshd \
+        || /bin/launchctl load -w /System/Library/LaunchDaemons/ssh.plist \
+        || /usr/sbin/systemsetup -f -setremotelogin on \
+        || true
+    fi
+    /bin/launchctl print system/com.openssh.sshd >/dev/null 2>&1 \
+      || /bin/launchctl bootstrap system /System/Library/LaunchDaemons/ssh.plist \
+      || true
+    if [ "$(_sshd_boot_state)" != "false" ]; then
+      echo "openssh: WARNING - sshd is marked disabled in launchd's overrides DB;" >&2
+      echo "openssh: it is running now but will NOT start at next boot." >&2
+      echo "openssh: toggle System Settings > General > Sharing > Remote Login ON," >&2
+      echo "openssh: then re-run rebuild so this check can go green." >&2
+    fi
+  '';
 
   homebrew = {
     enable = true;
