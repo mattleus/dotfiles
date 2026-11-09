@@ -1,5 +1,28 @@
 { user, pkgs, lib, ... }:
 
+let
+  # homebrew-core's terraform formula is frozen at 1.5.7 (deprecated after
+  # HashiCorp's BUSL relicense), hashicorp/homebrew-tap only tracks latest, and
+  # nixpkgs-26.05-darwin has 1.15.3 - so an exact 1.14.0 pin means fetching the
+  # official binary from releases.hashicorp.com. Bump: change the url + replace
+  # the hash from `nix store prefetch-file --unpack <url>` (fetchzip hashes the
+  # unpacked contents, NOT the zip, so the hashes in HashiCorp's SHA256SUMS file
+  # do not work here).
+  terraform_1_14_0 = pkgs.stdenvNoCC.mkDerivation {
+    pname = "terraform";
+    version = "1.14.0";
+    src = pkgs.fetchzip {
+      url = "https://releases.hashicorp.com/terraform/1.14.0/terraform_1.14.0_darwin_arm64.zip";
+      hash = "sha256-IQ9PS4QMgC/yOwU4rcf7X6S8zpkQNndCUqmKwl1Igyo=";
+      stripRoot = false;  # the zip is a flat list of files, not a directory
+    };
+    installPhase = ''
+      mkdir -p $out/bin
+      install -m755 terraform $out/bin/terraform
+    '';
+  };
+in
+
 {
   # Determinate already manages the Nix daemon, so nix-darwin shouldn't.
   nix.enable = false;
@@ -12,6 +35,7 @@
     home = "/Users/${user}";
   };
   programs.zsh.enable = true;
+  environment.systemPackages = [ terraform_1_14_0 ];
   system.stateVersion = 6;
   system.defaults = {
     NSGlobalDomain = {
@@ -115,7 +139,8 @@
       "python@3.13"
       "poetry"
       "gemini-cli"
-      "terraform"
+      # terraform lives in the pinned terraform_1_14_0 derivation at the top -
+      # homebrew-core is frozen at 1.5.7, so the brew would zap-fight the pin
       "sqlite"
       "clippy"
       "treehouse"
