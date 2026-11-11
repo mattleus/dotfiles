@@ -341,10 +341,12 @@ in
 
     # Timeout increase (2026-10-28): 6+ tasks hit 30m test timeouts on active work.
     # Agents show pi-web-access peerDependencies warning, likely eating budget.
-    # Raising test_agent_timeout to 60m (duration string required).
+    # Raised 60m -> 3h (2026-11-11): a 9-scenario live validation round died at the
+    # 1h cut twice in a row (test agent killed exit 143); a with-suite this size
+    # honestly needs more wall-clock (duration string required).
     # NOTE: auto_fix.review and auto_fix.rebase are COUNT limits for auto-fixing
     # findings without human review, NOT timeouts. Default 0 (disabled) is correct.
-    test_agent_timeout: 60m
+    test_agent_timeout: 3h
     # Same provider slowness was killing other step agents at the generic default
     # (dom-216 document step died at 30m on 2026-10-28 while concluding no doc
     # changes were needed).
