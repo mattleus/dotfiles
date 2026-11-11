@@ -355,7 +355,9 @@ in
     # exactly 30m on 2026-10-28 even with agent_timeout at 60m): review_agent_timeout
     # is a separate key with a baked-in 30m default. Raised same day; ported from the
     # live ~/.no-mistakes/config.yaml where it had been set by hand and never landed.
-    review_agent_timeout: 60m
+    # Raised 60m -> 3h (2026-11-11): three validation runs each had the review agent
+    # killed at exactly the 60m cut (exit 143) while still actively reviewing.
+    review_agent_timeout: 3h
   '';
 
   # opencode: deliberately NOT a nixpkgs package or Homebrew formula (it has both) so that its
