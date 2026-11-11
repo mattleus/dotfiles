@@ -358,43 +358,6 @@ in
     # Raised 60m -> 3h (2026-11-11): three validation runs each had the review agent
     # killed at exactly the 60m cut (exit 143) while still actively reviewing.
     review_agent_timeout: 3h
-
-    # cohere-ai/infra is a terraform monorepo: validating a change means the
-    # config formats and validates and the implied resource diff matches the
-    # PR's intent. The repo does not use .tftest.hcl files, so the Test step
-    # must never run mocked `terraform test` suites or edit test files there;
-    # reviews of the real plan happen in the repo's own CI. Keyed by the gate's
-    # registered remote (ssh-alias host `github-cohere`, so path case and the
-    # trailing .git are significant per the repository_overrides docs).
-    repository_overrides:
-      git@github-cohere:cohere-ai/infra.git:
-        document:
-          instructions: |
-            Keep this pass short for this repository: check only comments and
-            READMEs that directly describe the changed resources; do not search
-            the whole repo. Run `terraform fmt -check` on the changed .tf files.
-            Do not run `terraform init` or `terraform validate` here (the Test
-            step owns those). tflint is not installed on this machine: report
-            it once as unavailable and move on.
-        review:
-          path_instructions:
-            - path: "**/*.tftest.hcl"
-              instructions: |
-                This repository does not accept .tftest.hcl files. Flag any
-                added or modified .tftest.hcl file as a finding.
-        test:
-          instructions: |
-            Validation for this repository is exactly: run `terraform fmt
-            -check` and `terraform init -backend=false && terraform validate`
-            for each changed terraform project (in a scratch copy outside the
-            worktree when init would write into it), then read the PR diff and
-            check that its intended change matches the resource diff it implies
-            - where the real CI terraform plan is already posted on the PR,
-            compare against that - and report any mismatch. Do NOT run
-            `terraform test`; do not create, edit, or delete any .tftest.hcl
-            file anywhere; do not build mocked-provider harnesses or sandbox
-            test rigs. Live-product scenarios are not applicable: real
-            plan/apply runs only in the repository's own CI.
   '';
 
   # opencode: deliberately NOT a nixpkgs package or Homebrew formula (it has both) so that its
