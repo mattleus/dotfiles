@@ -103,7 +103,8 @@ in
   # and warn loudly instead of trusting exit codes.
   system.activationScripts.postActivation.text = lib.mkAfter ''
     _sshd_boot_state() {
-      /usr/bin/plutil -extract "com.openssh.sshd" raw -o - /var/db/com.apple.xpc.launchd/disabled.plist 2>/dev/null
+      # plutil -extract treats dots as a key-PATH separator, so the dots must be escaped to read the literal "com.openssh.sshd" key.
+      /usr/bin/plutil -extract 'com\.openssh\.sshd' raw -o - /var/db/com.apple.xpc.launchd/disabled.plist 2>/dev/null
     }
     if [ "$(_sshd_boot_state)" != "false" ]; then
       /bin/launchctl enable system/com.openssh.sshd \
