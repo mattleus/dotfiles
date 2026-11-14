@@ -6,7 +6,7 @@
     "showImages": false
   },
   "defaultProvider": "cohere-acp",
-  "defaultModel": "oss/kimi-k3-b200-pd-1p1d",
+  "defaultModel": "oss/kimi-k3-1-pro-b200-pd-1p1d",
   "defaultThinkingLevel": "high",
   "hideThinkingBlock": true,
   "quietStartup": true,
