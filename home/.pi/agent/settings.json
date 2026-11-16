@@ -11,6 +11,7 @@
   "enabledModels": [
     "cohere-acp/oss/kimi-k3-1-pro-b200-pd-1p1d:high",
     "cohere-acp/oss/glm-5-3-flash:high",
+    "cohere-acp/claude-opus-5-5:high",
     "**"
   ],
   "hideThinkingBlock": true,
