@@ -6,8 +6,12 @@
     "showImages": false
   },
   "defaultProvider": "cohere-acp",
-  "defaultModel": "oss/kimi-k3-1-pro-b200-pd-1p1d",
+  "defaultModel": "oss/glm-5-3-flash",
   "defaultThinkingLevel": "high",
+  "enabledModels": [
+    "cohere-acp/oss/kimi-k3-1-pro-b200-pd-1p1d:high",
+    "cohere-acp/oss/glm-5-3-flash:high"
+  ],
   "hideThinkingBlock": true,
   "quietStartup": true,
   "theme": "rose-pine-moon",
@@ -15,14 +19,20 @@
   "followUpMode": "all",
   "collapseChangelog": true,
   "packages": [
-    "npm:pi-web-access@0.14.0",
     "npm:@ryan_nookpi/pi-extension-codex-fast-mode@0.2.6",
     "git:github.com/algal/pi-openai-server-compaction@c6d593087709e9481223dc6c6c2269b371b5e055",
     "npm:pi-mcp-adapter",
-    "git:git@github-cohere:cohere-ai/pi-provider"
+    "git:git@github-cohere:cohere-ai/pi-provider",
+    "npm:pi-web-access@0.48.0"
   ],
-  "lastChangelogVersion": "1.0.4",
+  "lastChangelogVersion": "1.5.2",
   "extensions": [
     "-builtin:mcp"
-  ]
+  ],
+  "extensionChangelogVersions": {
+    "{\"source\":\"npm:pi-web-access@0.14.0\",\"scope\":\"user\"}": "0.14.0",
+    "{\"source\":\"git:github.com/algal/pi-openai-server-compaction@c6d593087709e9481223dc6c6c2269b371b5e055\",\"scope\":\"user\"}": "0.1.0",
+    "{\"source\":\"npm:pi-mcp-adapter\",\"scope\":\"user\"}": "7.0.1",
+    "{\"source\":\"npm:pi-web-access@0.48.0\",\"scope\":\"user\"}": "0.48.0"
+  }
 }
