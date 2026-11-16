@@ -10,7 +10,8 @@
   "defaultThinkingLevel": "high",
   "enabledModels": [
     "cohere-acp/oss/kimi-k3-1-pro-b200-pd-1p1d:high",
-    "cohere-acp/oss/glm-5-3-flash:high"
+    "cohere-acp/oss/glm-5-3-flash:high",
+    "**"
   ],
   "hideThinkingBlock": true,
   "quietStartup": true,
