@@ -316,11 +316,11 @@ in
   # stays installed and referenced in agent_path_override in case a review role
   # needs it again. The agent_config.pi pin keeps every pi gate invocation off
   # this pi install's global default; the pipeline's step and fix agents now
-  # default to cohere-acp/oss/glm-5-3-flash. The previous default,
-  # cohere-acp/oss/kimi-k3-b200-pd-1p1d, is the pre-rename kimi-k3-b200-pd-1p1d
-  # id that silently degraded to the first authed models.json entry on every
-  # turn; the serving kimi id is cohere-acp/oss/kimi-k3-1-pro-b200-pd-1p1d.
-  # cohere-acp/oss/kimi-k3-1-pro-b200-pd-1p1d and cohere-acp/claude-opus-5-5
+  # default to cohere-acp/oss/glm-5-3-flash. The gateway flipped the kimi id
+  # back: kimi-k3-1-pro-b200-pd-1p1d is no longer served, and the supported id
+  # is again cohere-acp/oss/kimi-k3-b200-pd-1p1d (the pi launch cycle in
+  # settings.json follows this).
+  # cohere-acp/oss/kimi-k3-b200-pd-1p1d and cohere-acp/claude-opus-5-5
   # are the established hops when a glm-5-3-flash default stalls. Review stays
   # on the same pi harness on glm-5-3-flash: review_agents accepts model/effort
   # per role, and a nonempty role value overrides agent_config for that role
