@@ -101,8 +101,9 @@ in
 
   # Multiple GitHub accounts, routed by which folder a repo lives in.
   # Each account gets its own SSH key + host alias (programs.ssh below);
-  # these includes rewrite the plain git@github.com: remote to the right
-  # alias and set the matching commit identity, so remotes never need editing.
+  # these includes route the plain git@github.com: remote to the right key
+  # (via insteadOf to the alias, or sshCommand for cohere-ai) and set the
+  # matching commit identity, so remotes never need editing.
   programs.git = {
     enable = true;
     lfs.enable = true;
@@ -124,7 +125,9 @@ in
         condition = "gitdir:~/repos/github/cohere-ai/";
         contents = {
           user.email = "matthew.leus@cohere.com";
-          url."git@github-cohere:".insteadOf = "git@github.com:";
+          # sshCommand instead of an insteadOf rewrite, so the resolved remote stays
+          # github.com and North Code recognises cohere-ai repos as GitHub.
+          core.sshCommand = "ssh -i ~/.ssh/cohere-github -o IdentitiesOnly=yes";
         };
       }
       {
