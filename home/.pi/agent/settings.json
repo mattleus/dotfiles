@@ -36,5 +36,11 @@
     "{\"source\":\"git:github.com/algal/pi-openai-server-compaction@c6d593087709e9481223dc6c6c2269b371b5e055\",\"scope\":\"user\"}": "0.1.0",
     "{\"source\":\"npm:pi-mcp-adapter\",\"scope\":\"user\"}": "7.0.1",
     "{\"source\":\"npm:pi-web-access@0.48.0\",\"scope\":\"user\"}": "0.48.0"
+  },
+  "httpIdleTimeoutMs": 120000,
+  "retry": {
+    "provider": {
+      "timeoutMs": 120000
+    }
   }
 }
