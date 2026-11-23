@@ -25,7 +25,12 @@ in
     vscode-langservers-extracted  # json
     yaml-language-server          # yaml
     lua-language-server           # lua (this very config)
-    google-cloud-sdk  # gcloud CLI
+    # gcloud CLI plus the GKE kubeconfig auth binary plugin (used by kubectl on
+    # GKE clusters), attached via gcloud's withExtraComponents.
+    (google-cloud-sdk.withExtraComponents [
+      google-cloud-sdk.components.gke-gcloud-auth-plugin
+    ])
+    kubectl    # kubernetes CLI; authenticates to GKE through gke-gcloud-auth-plugin above
     nodejs    # general JS/TS dev use
     go        # Go
     # containers: docker is CLI-only here; colima runs the actual daemon in a
