@@ -19,7 +19,7 @@ kubectl config set-credentials u --token="$(gcloud auth print-access-token)" >/d
 kubectl config set-context c --cluster=c --user=u >/dev/null
 kubectl config use-context c >/dev/null
 
-token=$(kubectl -n ontology exec ontology-db-1 -c postgres -- psql -d platform -tA -v p="$PRINCIPAL" <<'SQL'
+token=$(kubectl -n ontology exec ontology-db-1 -i -c postgres -- psql -d platform -tA -v p="$PRINCIPAL" <<'SQL'
 SELECT platform_token FROM platform.session
 WHERE principal = lower(:'p') AND expires_at > now()
 ORDER BY created_at DESC LIMIT 1;

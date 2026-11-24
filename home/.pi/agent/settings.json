@@ -27,7 +27,7 @@
     "git:git@github-cohere:cohere-ai/pi-provider",
     "npm:pi-web-access@0.48.0"
   ],
-  "lastChangelogVersion": "1.5.2",
+  "lastChangelogVersion": "1.6.0",
   "extensions": [
     "-builtin:mcp"
   ],
