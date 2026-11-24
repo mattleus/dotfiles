@@ -238,6 +238,8 @@ in
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/scripts/openalex";
   home.file.".local/bin/gh-preview".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfiles}/scripts/gh-preview";
+  home.file.".local/bin/ontology_pltf_token".source =
+    config.lib.file.mkOutOfStoreSymlink "${dotfiles}/scripts/ontology_pltf_token.sh";
   # Run the darwin-rebuild wrapper from anywhere as `rebuild`. The script follows its
   # own symlink chain back to the repo before deriving the flake dir, so invoking it
   # through this symlink still points ~/.dotfiles at the repo correctly.
