@@ -106,12 +106,30 @@
         "url": "https://releases.nixos.org/nixos/unstable/nixos-26.11pre1034379.18b9261cb329/nixexprs.tar.xz"
       }
     },
+    "pstack": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1795683893,
+        "narHash": "sha256-hWAEifOG9l+73lmokGB8ZPB45i9t7WR0jGMJSv6bkB4=",
+        "owner": "cursor",
+        "repo": "plugins",
+        "rev": "b7b93c36be9bcc36a74db438e0fd385d660bc559",
+        "type": "github"
+      },
+      "original": {
+        "owner": "cursor",
+        "repo": "plugins",
+        "rev": "b7b93c36be9bcc36a74db438e0fd385d660bc559",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
         "home-manager": "home-manager",
         "nix-darwin": "nix-darwin",
         "nix-homebrew": "nix-homebrew",
         "nixpkgs": "nixpkgs",
+        "pstack": "pstack",
         "whip": "whip"
       }
     },
