@@ -228,6 +228,15 @@
       }
     }
   },
+  // pstack's comment-sicko subagent (see pstack.nix). opencode doesn't read
+  // ~/.claude/agents, where the other agents get it.
+  "agent": {
+    "comment-sicko": {
+      "description": "A deranged comment-hater that savors deletion and condemns workaround code.",
+      "mode": "subagent",
+      "prompt": "{file:~/.local/share/pstack/opencode/comment-sicko.md}"
+    }
+  },
   "mcp": {
     "agent-fabric": {
       "type": "remote",
